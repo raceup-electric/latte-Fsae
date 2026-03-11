@@ -1,13 +1,11 @@
 var options = `<select>
-    <option value="car">Car</option>
-    <option value="van">Van</option>
-    <option value="truck">Truck</option>
-    <option value="pedestrian">Pedestrian</option>
-    <option value="cyclist">Cyclist</option>
-    <option value="sitter">Sitter</option>
-    <option value="tram">Tram</option>
-    <option value="misc">Misc</option>
-    /select`;
+    <option value="SMALL-orange">SMALL-orange</option>
+    <option value="SMALL-blue">SMALL-blue</option>
+    <option value="SMALL-yellow">SMALL-yellow</option>
+    <option value="BIG">BIG</option>
+    <option value="UNKNOWN">UNKNOWN</option>
+    </select>`;
+
 
 
 // method to add row to object id table
@@ -81,7 +79,14 @@ function unfocus_object_row(frame) {
 // handler that highlights input and corresponding bounding box when input is selected
 $(OBJECT_TABLE).on('mousedown', '.object_row_id', function(e) {
     if (e.target != this || !isRecording) {return false;}
+    // Before selecting the new one, check if there is an existing selectedBox
+    // and reset its color to its specific base_color (orange/blue/yellow)
+    if (selectedBox) {
+        selectedBox.changeBoundingBoxColor(new THREE.Color(selectedBox.base_color));
+    }
+        
     var is_selected = $(this).attr("selected");
+    
     var is_editing = $(this).find("input").length == 1;
     isMoving = false;
     var boxId = $(this).find("input").length == 1 ? $(this).find("input").val() : $(this).text();
@@ -142,8 +147,43 @@ function updateObjectId() {
         console.log(boxId);
         box.object_id = input;
         box.set_box_id(parseInt(boxId))
-        // box.id = ;
-        console.log(box);
+        
+        
+        // NOTA: In box.js width e length sembrano invertiti rispetto alla convenzione comune
+        // nel codice LATTE spesso 'width' è l'asse X e 'length' è l'asse Z.
+        // Se il cono appare ruotato di 90 gradi, scambia i primi due numeri.
+
+        if (input && input.indexOf("SMALL") !== -1) {
+            // SMALL: 0.228 x 0.228 x 0.325
+            console.log("Ridimensiono a SMALL");
+            box.setDimensions(0.228, 0.228, 0.325);
+            
+        } else if (input && input.indexOf("BIG") !== -1) {
+            // BIG: 0.285 x 0.285 x 0.505
+            console.log("Ridimensiono a BIG");
+            box.setDimensions(0.285, 0.285, 0.505);
+        }
+        
+        // --- COLOR LOGIC (New) ---
+        // Define colors (Hex format)
+        var colorHex = 0xffffff; // Default White/Unknown
+
+        if (input) {
+            if (input.indexOf("blue") !== -1) {
+                colorHex = 0x0000ff; // Blue
+            } else if (input.indexOf("yellow") !== -1) {
+                colorHex = 0xffff00; // Yellow
+            } else if (input.indexOf("orange") !== -1 || input.indexOf("BIG") !== -1) {
+                colorHex = 0xff7f00; // Orange
+            }
+        }
+
+        // Apply color to the Box Lines
+        box.changeBoundingBoxColor(new THREE.Color(colorHex));
+        box.changeBaseColor(colorHex);
+        
+        // Update internal color state (so it stays this color if you hover/unhover)
+        box.color = new THREE.Color(colorHex);
         box.add_timestamp();
     }
     

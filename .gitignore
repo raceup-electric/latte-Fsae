@@ -1,4 +1,25 @@
-*.idea
-*.jpg
-*.ipynb
+# Dataset e Output (File pesanti)
+test_dataset/
+dataset/
+output/
+PointCloudDataset/
+
+# Pesi dei Modelli Neurali (Mask RCNN / Classificatori ignorati)
+*.h5
+*.hdf5
+logs/
+weights/
+
+# Python Cache e Ambienti Virtuali
 __pycache__/
+*.py[cod]
+*$py.class
+env/
+venv/
+.venv/
+.env
+
+# File di sistema e IDE
+.DS_Store
+.vscode/
+.idea/

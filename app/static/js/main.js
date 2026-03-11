@@ -207,13 +207,15 @@ function updateHoverBoxes(v) {
         for (var i = 0; i < boundingBoxes.length; i++) {
             var box = boundingBoxes[i];
             // added box to boverBoxes if cursor is within bounding box
-            if (v && containsPoint(box, v)) {
+            //if (v && containsPoint(box, v)) {
+            if (containsPoint(box, null)) {
+                console.log("within");
                 hoverBoxes.push(box);
             }
 
             // checks if box is selectedBox, if so changes color back to default
             if (box != selectedBox) {
-                box.changeBoundingBoxColor(default_color.clone());
+                //box.changeBoundingBoxColor(default_color.clone());
             }
         }
 
@@ -221,7 +223,7 @@ function updateHoverBoxes(v) {
         if (hoverBoxes.length == 1) {
             var box = hoverBoxes[0];
             if (box != selectedBox) {
-                box.changeBoundingBoxColor(hover_color.clone());
+                //box.changeBoundingBoxColor(hover_color.clone());
             }
         }
     }
@@ -253,20 +255,23 @@ function onDocumentMouseUp( event ) {
         newBox = null;
         if (isResizing) {
             app.increment_resize_count();
-            predictLabel(resizeBox);
+            //predictLabel(resizeBox);
             predictBox = resizeBox;
+            resizeBox.changeBoundingBoxColor(new THREE.Color(resizeBox.base_color));
         }
         if (isMoving && selectedBox) {
             app.increment_translate_count();
-            predictLabel(selectedBox);
+            //predictLabel(selectedBox);
             predictBox = selectedBox;
+            selectedBox.changeBoundingBoxColor(new THREE.Color(selectedBox.base_color));
         }
         if (isRotating) {
             app.increment_rotate_count();
             predictBox = rotatingBox;
+            rotatingBox.changeBoundingBoxColor(new THREE.Color(rotatingBox.base_color));
         }
         if (predictBox) {
-            predictLabel(predictBox);            
+            //predictLabel(predictBox);            
         }
         isResizing = false;
         isRotating = false;
@@ -293,8 +298,8 @@ function onDocumentMouseDown( event ) {
             var intersection = intersectWithCorner();
             // update hover box
             if (selectedBox && (hoverBoxes.length == 0 || hoverBoxes[0] != selectedBox)) {
-                selectedBox.changeBoundingBoxColor(0xffff00);
-                selectedBox = null;
+                //selectedBox.changeBoundingBoxColor(0xffff00);
+                //selectedBox = null;
                 isMoving = false;
             }
 
@@ -322,7 +327,7 @@ function onDocumentMouseDown( event ) {
                 anchor.y -= .000001;
                 anchor.z += .000001;
                 newBoundingBox = new THREE.Box3(anchor, v);
-                newBoxHelper = new THREE.Box3Helper( newBoundingBox, 0xffff00 );
+                newBoxHelper = new THREE.Box3Helper( newBoundingBox, 0xffffff );
                 anchor = anchor.clone();
 
                 newBox = new Box(anchor, v, angle, newBoundingBox, newBoxHelper);
@@ -409,17 +414,58 @@ function update_footer(pos) {
                                                         y.toFixed(3)));
 }
 
-
-
 function generatePointCloud() {
+    var currentSize = typeof pointSize !== 'undefined' ? pointSize : 0.05; 
+    
     if (app.cur_pointcloud != null) {
-        return updatePointCloud(app.cur_frame.data, COLOR_RED);
-    } else {
-       return generateNewPointCloud(app.cur_frame.data, COLOR_RED);
+        if (app.cur_pointcloud.material) {
+            currentSize = app.cur_pointcloud.material.size;
+        }
+        scene.remove(app.cur_pointcloud);
+    }
+    
+    var geometry = new THREE.Geometry();
+    var colors = [];
+    var data = app.cur_frame.data;
+    
+    var max_i = -Infinity;
+    var min_i = Infinity;
+    for (var i = 0; i < data.length; i += 4) {
+        var intensity = data[i+3];
+        if (intensity > max_i) max_i = intensity;
+        if (intensity < min_i) min_i = intensity;
+    }
+
+    for (var i = 0; i < data.length; i += 4) {
+        var x = data[i+1];
+        var y = data[i+2];
+        var z = data[i];
+        var intensity = data[i+3];
+        
+        geometry.vertices.push(new THREE.Vector3(x, y, z));
+
+        var norm_i = (intensity - min_i) / (max_i - min_i + 0.0001);
+        var hue = (1.0 - norm_i) * 0.66;
+        var color = new THREE.Color();
+        color.setHSL(hue, 1.0, 0.5);
+        colors.push(color);
+    }
+    
+    geometry.colors = colors;
+    
+    var material = new THREE.PointsMaterial({ 
+        size: currentSize, 
+        sizeAttenuation: false, 
+        vertexColors: THREE.VertexColors 
+    });
+    
+    app.cur_pointcloud = new THREE.Points(geometry, material);
+    scene.add(app.cur_pointcloud);
+    
+    if (typeof pointSize !== 'undefined') {
+        pointSize = currentSize;
     }
 }
-
-
 function switchMoveMode() {
     eventFire(document.getElementById('move'), 'click');
 }
@@ -443,28 +489,7 @@ function moveMode( event ) {
     unprojectFromXZ();
 }
 
-// function assertRecordMode() {
-//     if (!isRecording) {
-//         alert("Resume recording to change modes");
-//     }
-// }
-// function select2DMode() {
-//     console.log("draw");
-//     document.getElementById( 'move' ).className = "";
-//     document.getElementById( 'move2D' ).className = "selected";
-//     camera.position.set(0, 100, 0);
-//     camera.lookAt(new THREE.Vector3(0,0,0));
-//     // camera.rotation.y = 0;
-//     controls.maxPolarAngle = 0;
-//     controls.minPolarAngle = 0;
-//     camera.updateProjectionMatrix();
-//     projectOntoXZ();
 
-//     controls.reset();
-//     controls.enabled = true;
-//     controls.update();
-//     app.move2D = true;
-// }
 
 function move2DMode( event ) {
     event.preventDefault();

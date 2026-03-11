@@ -2,60 +2,64 @@ function normalizeColors(vertices, color) {
     var maxColor = Number.NEGATIVE_INFINITY;
     var minColor = Number.POSITIVE_INFINITY;
     var intensities = [];
-    var normalizedIntensities = [];
     var colors = app.cur_pointcloud.geometry.colors;
-    k = 0;
-    var stride = 4;
-    // finds max and min z coordinates
+    var k = 0;
+    
+    // 1. Estrazione Intensità (Indice 3)
     for ( var i = 0, l = vertices.length / DATA_STRIDE; i < l; i ++ ) {
-        if (vertices[ DATA_STRIDE * k + 2] > maxColor) {
-            maxColor = vertices[ DATA_STRIDE * k + 2];
+        var val = vertices[ DATA_STRIDE * k + 3 ]; 
+        if (val > maxColor) {
+            maxColor = val;
         }
-        if (vertices[ DATA_STRIDE * k + 2] < minColor) {
-            minColor = vertices[ DATA_STRIDE * k + 2];
+        if (val < minColor) {
+            minColor = val;
         }
-        intensities.push(vertices[ DATA_STRIDE * k + 2]);
+        intensities.push(val);
         k++;
     }
 
-    mean = calculateMean(intensities);
-    sd = standardDeviation(intensities);
-    filteredIntensities = filter(intensities, mean, 1 * sd);
-    min = getMinElement(filteredIntensities);
-    max = getMaxElement(filteredIntensities);
-    // normalize colors
-    // if greater than 2 sd from mean, set to max color
-    // if less than 2 sd from mean, set to min color
-    // ortherwise normalize color based on min and max z-coordinates
+    var mean = calculateMean(intensities);
+    var sd = standardDeviation(intensities);
+    var filteredIntensities = filter(intensities, mean, 1 * sd);
+    var min = getMinElement(filteredIntensities);
+    var max = getMaxElement(filteredIntensities);
+    
     var intensity;
     for ( var i = 0;  i < app.cur_pointcloud.geometry.vertices.length; i ++ ) {
         intensity = intensities[i];
         if (i < intensities.length) {
+            // "Taglia" i valori estremi per mantenere alto il contrasto
             if (intensities[i] - mean >= 2 * sd) {
-                intensity = 1;
+                intensity = 1.0;
             } else if (mean - intensities[i] >= 2 * sd) {
-                intensity = 0;
+                intensity = 0.0;
             } else {
                 intensity = (intensities[i] - min) / (max - min);
             }
         } else {
-            intensity = 0;
+            intensity = 0.0;
         }
-        colors[i].setRGB(intensity, 0, 1 - intensity);
-        colors[i].multiplyScalar(intensity * 5);    
+        
+        // --- COLORMAPPING STILE RVIZ (JET/RAINBOW) ---
+        // Hue (Tinta): 0.66 è Blu (bassa intensità), 0.0 è Rosso (alta intensità).
+        var hue = (1.0 - intensity) * 0.66; 
+        
+        // setHSL accetta (Tinta, Saturazione, Luminosità).
+        // Saturazione al 100% (1.0) per colori super vividi.
+        // Luminosità fissa al 50% (0.5) che è il "vero" colore in HSL.
+        colors[i].setHSL(hue, 1.0, 0.5);
+        
         app.cur_pointcloud.geometry.colorsNeedUpdate = true;
     }
     
     return colors;
 }
-
 function highlightPoints(indices) {
     var pointcloud = app.cur_pointcloud;
     for (var j = 0; j < indices.length; j++) {
         pointcloud.geometry.colors[indices[j]] = new THREE.Color(0x00ff6b);
     }
     pointcloud.geometry.colorsNeedUpdate = true;
-
 }
 
 function generateNewPointCloud( vertices, color ) {
@@ -67,16 +71,12 @@ function generateNewPointCloud( vertices, color ) {
         var v = new THREE.Vector3( vertices[ DATA_STRIDE * k + 1 ], 
             vertices[ DATA_STRIDE * k + 2 ], vertices[ DATA_STRIDE * k ] );
 
-        // stores y coordinates into yCoords
-        // app.cur_frame.ys.push(vertices[ DATA_STRIDE * k + 2 ]);
-        
         // add vertex to geometry
         geometry.vertices.push( v );
         colors.push(color.clone());
         k++;
     }
     geometry.colors = colors;
-    // geometry.colors = colors;
     geometry.computeBoundingBox();
 
     var material = new THREE.PointsMaterial( { size: pointSize, sizeAttenuation: false, vertexColors: THREE.VertexColors } );
@@ -100,8 +100,6 @@ function updatePointCloud( vertices, color ) {
             geometry.vertices.push(v);
             geometry.colors.push(color.clone());
 
-            // stores y coordinates into yCoords
-            // app.cur_frame.ys.push(vertices[ DATA_STRIDE * k + 2 ]);
             geometry.verticesNeedUpdate = true;
             geometry.colorsNeedUpdate = true;
         } else {
@@ -121,5 +119,4 @@ function updatePointCloud( vertices, color ) {
     }
 
     return app.cur_pointcloud;
-
 }

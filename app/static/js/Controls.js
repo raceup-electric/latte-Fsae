@@ -1,18 +1,30 @@
-var maxSize = 4;
-var pointSize = 2;
+var pointSize = 1.0; // Set a default starting size (0.05 is good for Formula Student)
 
 var SettingsControls = function() {
-                       this.size = pointSize / maxSize;
-                };
+    this.size = pointSize;
+    // Bind the functions to the app context if it exists, otherwise do nothing safely
+    this.toggleGround = function() { if (typeof app !== 'undefined') app.toggleGroundRemoved(); };
+    this.toggleAnnotations = function() { if (typeof app !== 'undefined') app.toggleAnnotations(); };
+};
 
-
-var gui = new dat.GUI();
+var gui = new dat.GUI({ width: 400 }); // Made it slightly wider to fit button text
 var settingsControls = new SettingsControls();
-var settingsFolder = gui.addFolder('settings');
-settingsFolder.add(settingsControls, 'size').min(0.0).max(1.0).step(0.05).onChange(function() {
-    app.cur_pointcloud.material.size = settingsControls.size * maxSize;
-    pointMaterial.size = 4 * settingsControls.size * maxSize;
+var settingsFolder = gui.addFolder('Settings & Tools');
+
+// 1. Point Size Slider
+settingsFolder.add(settingsControls, 'size').min(0.05).max(1.5).step(0.05).name("Point Size").onChange(function() {
+    pointSize = settingsControls.size; // Update global variable
+    
+    // Update the actual point cloud material immediately if it exists
+    if (typeof app !== 'undefined' && app.cur_pointcloud && app.cur_pointcloud.material) {
+        app.cur_pointcloud.material.size = pointSize;
+        app.cur_pointcloud.material.needsUpdate = true;
+    }
 });
+
+// 2. Add our two toggles as buttons right under the slider
+settingsFolder.add(settingsControls, 'toggleGround').name('Remove/Restore ground');
+settingsFolder.add(settingsControls, 'toggleAnnotations').name('Hide/Show labels');
 
 settingsFolder.open();
 

@@ -11,6 +11,8 @@ function App() {
 	this.evaluators = [];
 	this.controls = {};
 	this.lock_frame = false;
+	this.use_ground_removed = false;
+    	this.show_annotations = true;
 
 	this.init = function() {
 		$.ajax({
@@ -55,119 +57,246 @@ function App() {
 			return false;
 		}
 	};
+this.updateAnnotationVisibility = function() {
+        if (!this.cur_frame || !this.cur_frame.bounding_boxes) return;
+        
+        var boxes = this.cur_frame.bounding_boxes;
+        
+        for (var i = 0; i < boxes.length; i++) {
+            var box = boxes[i];
+            
+            for (var key in box) {
+                if (box.hasOwnProperty(key)) {
+                    var prop = box[key];
+                    if (prop && prop instanceof THREE.Object3D) {
+                        prop.visible = this.show_annotations;
+                    }
+                }
+            }
+            
+            if (box.text && box.text.style) {
+                box.text.style.display = this.show_annotations ? "block" : "none";
+            }
+        }
+        
 
-	this.set_frame = function(fname) {
-		var frame = this.get_frame(fname);
-		// this.set_controls(fname);
-		if (this.cur_frame == frame || this.lock_frame) {
-			return;
-		} 
-		if (this.cur_frame) {
-			this.write_frame_out();
-			this.cur_frame.scene_remove_frame_children();	
-			this.show_prev_frame = false;	
-		}
-		if (frame) {
-			show(frame);
-			this.predict_next_frame_bounding_box(this.get_prev_fname(fname));
-		} else {
-			$.ajax({
-				context: this,
-				url: '/getFramePointCloud',
-				data: JSON.stringify({fname: fname}),
-				type: 'POST',
-				contentType: 'application/json;charset=UTF-8',
-				success: function(response) {
-					var data, res, annotation, bounding_boxes_json, bounding_boxes, box;
-					res = response.split('?');
-					data = res[0].split(',').map(x => parseFloat(x));
-					var frame = new Frame(fname, data);
+        if (this.show_annotations) {
+            $('.text-label').show();
+            $('.label').show();  
+        } else {
+            $('.text-label').hide();
+            $('.label').hide();
+        }
+    };
 
-					if (res.length > 1 && res[1].length > 0)  {
-						annotation = parsePythonJSON(res[1]);
-						bounding_boxes_json = Object.values(annotation["frame"]["bounding_boxes"]);
-						bounding_boxes = Box.parseJSON(bounding_boxes_json);
-						for (var i = 0; i < bounding_boxes.length; i++) {
-							box = bounding_boxes[i];
-							frame.bounding_boxes.push(box);
-							box.add_text_label();
-							frame.annotated = true;
-						}
-					}
+    this.toggleAnnotations = function() {
+        this.show_annotations = !this.show_annotations;
 
-					this.frames[fname] = frame;
+        var btn = document.getElementById("toggle-annotations-btn");
+        if(btn) {
+            btn.innerText = this.show_annotations ? "Hide labels" : "Show labels";
+            btn.style.backgroundColor = this.show_annotations ? "#2196F3" : "#FF9800"; 
+        }
+        
+        this.updateAnnotationVisibility();
+    };
 
-					this.get_Mask_RCNN_Labels(fname);
-					this.predict_next_frame_bounding_box(this.get_prev_fname(fname));
-					show(frame);
-				},
-				error: function(error) {
-					console.log(error);
-				}
-			});
-		}
-	};
+    this.toggleGroundRemoved = function() {
+        this.use_ground_removed = !this.use_ground_removed;
+        var btn = document.getElementById("toggle-ground-btn");
+        if(btn) {
+            btn.innerText = this.use_ground_removed ? "Show ground" : "Remove ground";
+            btn.style.backgroundColor = this.use_ground_removed ? "#f44336" : "#4CAF50";
+        }
+        
+        if (!this.cur_frame) return;
 
+        $.ajax({
+            context: this,
+            url: '/getJustPointCloud',
+            data: JSON.stringify({fname: this.cur_frame.fname, ground_removed: this.use_ground_removed}),
+            type: 'POST',
+            contentType: 'application/json;charset=UTF-8',
+            success: function(response) {
+                var data = response.split(',').map(x => parseFloat(x));
+                this.cur_frame.data = data;
+                this.cur_frame.is_ground_removed = this.use_ground_removed; // Salva stato nella cache
+                
+                // Rigenera i punti 3D e li sostituisce a schermo
+                generatePointCloud();
+                scene.add(this.cur_pointcloud);
+            },
+            error: function(error) {
+                console.log("Errore nel download della point cloud: ", error);
+            }
+        });
+    };
+
+    this.set_frame = function(fname) {
+        var frame = this.get_frame(fname);
+        
+        if (this.cur_frame == frame || this.lock_frame) {
+            return;
+        } 
+        if (this.cur_frame) {
+            this.write_frame_out();
+            this.cur_frame.scene_remove_frame_children();    
+            this.show_prev_frame = false;    
+        }
+        
+        if (frame && frame.is_ground_removed === this.use_ground_removed) {
+            show(frame);
+            this.predict_next_frame_bounding_box(this.get_prev_fname(fname));
+            this.updateAnnotationVisibility();
+        } else {
+            $.ajax({
+                context: this,
+                url: '/getFramePointCloud',
+                data: JSON.stringify({fname: fname, ground_removed: this.use_ground_removed}),
+                type: 'POST',
+                contentType: 'application/json;charset=UTF-8',
+                success: function(response) {
+                    var data, res, annotation, bounding_boxes_json, bounding_boxes, box;
+                    res = response.split('?');
+                    data = res[0].split(',').map(x => parseFloat(x));
+                    
+                    if (frame) {
+                        frame.data = data;
+                        frame.is_ground_removed = this.use_ground_removed;
+                    } else {
+                        frame = new Frame(fname, data);
+                        frame.is_ground_removed = this.use_ground_removed;
+
+                        if (res.length > 1 && res[1].length > 0)  {
+                            annotation = parsePythonJSON(res[1]);
+                            bounding_boxes_json = Object.values(annotation["frame"]["bounding_boxes"]);
+                            bounding_boxes = Box.parseJSON(bounding_boxes_json);
+                            for (var i = 0; i < bounding_boxes.length; i++) {
+                                box = bounding_boxes[i];
+                                frame.bounding_boxes.push(box);
+                                box.add_text_label();
+                                frame.annotated = true;
+                            }
+                        }
+                        this.frames[fname] = frame; // Salva in cache
+                    }
+
+                    this.predict_next_frame_bounding_box(this.get_prev_fname(fname));
+                    
+                    show(frame);
+                    
+                    this.updateAnnotationVisibility();
+                },
+                error: function(error) {
+                    console.log(error);
+                }
+            });
+        }
+    };
 	this.predict_next_frame_bounding_box = function(fname) {
-		if (!enable_bounding_box_tracking) {
-			return;
-		}
-		var cur_idx = this.fnames.indexOf(fname);
-		console.log("cur idx: ", cur_idx);
-		if (cur_idx < 0 ||
-			cur_idx >= this.fnames.length - 1 ||
-			this.frames[this.fnames[cur_idx+1]].is_annotated() ||
-			!this.frames[this.fnames[cur_idx]] || 
-			!this.frames[this.fnames[cur_idx]].is_annotated()) {
-			// console.log("annotated: ", this.frames[fname].is_annotated());
-			return;
-		}
-		if (this.fnames[cur_idx].split("/")[0] != this.fnames[cur_idx+1].split("/")[0]) {
-			return;
-		}
+        if (!enable_bounding_box_tracking) {
+            return;
+        }
+        var cur_idx = this.fnames.indexOf(fname);
+        if (cur_idx < 0 ||
+            cur_idx >= this.fnames.length - 1 ||
+            !this.frames[this.fnames[cur_idx]]) {
+            return;
+        }
+        
+        if (this.fnames[cur_idx].split("/")[0] != this.fnames[cur_idx+1].split("/")[0]) {
+            return; 
+        }
 
-		console.log("app.predict_next_frame_bounding_box, current fname: ", fname);
+        var next_fname = this.fnames[cur_idx+1];
+        var next_frame = this.frames[next_fname];
+        var prev_frame = this.frames[fname];
 
-		var next_frame = this.frames[this.fnames[cur_idx+1]];
-		console.log(next_frame.is_annotated);
-		
-		if (!next_frame.annotated) {
-			next_frame.annotated = true;
-			$.ajax({
-				context: this,
-				url: '/predictNextFrameBoundingBoxes',
-				data: JSON.stringify({fname: fname}),
-				type: 'POST',
-				contentType: 'application/json;charset=UTF-8',
-				success: function(response) {
-					var res = response.split("\'").join("\"");
-					console.log(res);
-					res = JSON.parse(res);
-					console.log(res);
-					for (var box_id in res) {
-						if (res.hasOwnProperty(box_id)) {
-							console.log(res[box_id]);
-							var json_box = res[box_id];
-							var corner1 = new THREE.Vector3(json_box.corner1[1], 
-															this.eps, 
-															json_box.corner1[0]);
-							var corner2 = new THREE.Vector3(json_box.corner2[1], 
-															0, 
-															json_box.corner2[0]);
-							var box = createAndDrawBox(corner1, 
-											  corner2, 
-											  json_box['angle']);
-							addBox(box);
-						}
-					}
-				},
-				error: function(error) {
-					console.log(error);
-				}
-			});
-		}
-	};
+        if (next_frame.is_annotated()) {
+            return;
+        }
 
+        console.log("Tracking (Ego-Motion + Open3D) da: ", fname, " a ", next_fname);
+        console.log(prev_frame.bounding_boxes.length)
+
+        $.ajax({
+            context: this,
+            url: '/predictNextFrameBoundingBoxes',
+            data: JSON.stringify({fname: fname}),
+            type: 'POST',
+            contentType: 'application/json;charset=UTF-8',
+            success: function(response) {
+                // Parsing robusto della risposta stringata di Python
+                var res = response.split("\'").join("\"");
+                res = JSON.parse(res);
+                console.log(res)
+                
+                var old_boxes_map = {};
+                for (var i = 0; i < prev_frame.bounding_boxes.length; i++) {
+                    var b = prev_frame.bounding_boxes[i];
+                    old_boxes_map[b.id] = b;
+                }
+
+                for (var box_id_str in res) {
+                    if (res.hasOwnProperty(box_id_str)) {
+
+                        var json_box = res[box_id_str];
+                        var box_id = parseInt(box_id_str);
+                        var old_box = old_boxes_map[box_id];
+                        console.log(box_id)
+
+                        // Attenzione: LATTE scambia Y e X tra Python e Three.js
+                        var corner1 = new THREE.Vector3(json_box.corner1[1], this.eps, json_box.corner1[0]);
+                        var corner2 = new THREE.Vector3(json_box.corner2[1], 0, json_box.corner2[0]);
+                        
+                        var box = createBox(corner1, corner2, json_box['angle']);
+                        
+                        box.id = box_id;
+                        
+                        if (old_box) {
+                            box.object_id = old_box.object_id; // Es. "SMALL-blue"
+                            
+      
+                            box.boundingBox.min.y = old_box.boundingBox.min.y;
+                            box.boundingBox.max.y = old_box.boundingBox.max.y;
+                            
+                            box.geometry.verticesNeedUpdate = true;
+                            if (box.boxHelper.update) box.boxHelper.update();
+
+                            if (old_box.base_color) {
+                                box.base_color = old_box.base_color;
+                                box.changeBaseColor(box.base_color);
+                                box.changeBoundingBoxColor(box.base_color);
+                            }
+                        }
+
+                        
+                        next_frame.bounding_boxes.push(box);
+                        box.add_text_label();
+                        
+                        if (this.cur_frame === next_frame) {
+                            scene.add(box.points);
+                            scene.add(box.boxHelper);
+                            if (typeof addObjectRow === "function") {
+                                addObjectRow(box);
+                                
+                                if (box.object_id) {
+                                    var select = $(OBJECT_TABLE).find(".object_row_id:contains('" + box.id + "')").closest("tr").find("select");
+                                    select.val(box.object_id);
+                                }
+                            }
+                        }
+                        next_frame.annotated = true;
+                    }
+                }
+                //next_frame.annotated = true;
+            },
+            error: function(error) {
+                console.log("Errore nel tracking backend: ", error);
+            }
+        });
+    };
+ 
 	this.get_pointcloud_data = function(fname) {
 		if (fname in this.frames) {
 			return this.frames[fname].data;
@@ -194,20 +323,45 @@ function App() {
 		if (!isResizing) {return;}
 		if (mouseDown) {
 			var cursor = app.getCursor();
-			// cursor's y coordinate nudged to make bounding box matrix invertible
 			cursor.y -= this.eps;
 			resizeBox.resize(cursor);
 			resizeBox.add_timestamp();
+			
+			if(resizeBox.object_id != 'UNKNOWN')
+			{
+			    resizeBox.object_id = 'UNKNOWN'; 
+			    
+			    resizeBox.changeBaseColor(0xffffff);
+			    
+			    var row = getRow(resizeBox.id);
+			    
+			    if (row) {
+				$(row).find('select').val('UNKNOWN');
+	
+			    }
+			    this.increment_label_count();
+			}
+			
 		} else {
-			// evaluator.increment_resize_count();
-			predictLabel(resizeBox);
-			predictBox = resizeBox;
+           
+		    predictBox = resizeBox;
+
 		}
 	}
+	
 
 	this.handleBoxMove = function() {
 		if (mouseDown && isMoving) {
-			selectedBox.translate(this.getCursor());
+			var cone = false;
+			var height;
+			if(selectedBox.object_id.indexOf("SMALL") !== -1){
+			    height = 0.325;
+			    cone = true;
+			}else if(selectedBox.object_id.indexOf("BIG") !== -1){
+			    height = 0.505;
+			    cone = true;
+			}
+			selectedBox.translate(this.getCursor(), height, cone)
 			selectedBox.changeBoundingBoxColor(selected_color.clone());
 			selectedBox.add_timestamp();
 		}
@@ -215,12 +369,13 @@ function App() {
 
 	this.handleAutoDraw = function() {
 		if (autoDrawMode && enable_one_click_annotation) {
+			var clickPoint = app.getCursor().clone();
 			$.ajax({
 				context: this,
 				url: '/predictBoundingBox',
 				type: 'POST',
 				contentType: 'application/json;charset=UTF-8',
-				data: JSON.stringify({fname: this.cur_frame.fname, point: app.getCursor()}),
+				data: JSON.stringify({fname: this.cur_frame.fname, point: clickPoint}),
 				success: function(response) {
 					console.log(response);
 					var str = response.replace(/'/g, "\"");
@@ -228,10 +383,8 @@ function App() {
 	
 					var corner1 = new THREE.Vector3(res.corner1[1], this.eps, res.corner1[0]);
 					var corner2 = new THREE.Vector3(res.corner2[1], 0, res.corner2[0]);
-					console.log(corner1);
-					var box = createAndDrawBox(corner1, 
-										corner2, 
-										res['angle']);
+
+					var box = createAndDrawBox(corner1, corner2,res['angle']);
 					addBox(box);
 				},
 				error: function(error) {
@@ -487,8 +640,22 @@ function show(frame) {
 	app.cur_frame.scene_add_frame_children();
 	loadObjectTable();
 	switchMoveMode();
+	
+	// Questo loop forza l'applicazione del colore salvato (base_color)
+	// a tutti i box appena aggiunti alla scena.
+	
+	if (app.cur_frame.bounding_boxes) {
+	    for (var i = 0; i < app.cur_frame.bounding_boxes.length; i++) {
+		var box = app.cur_frame.bounding_boxes[i];
+		    
+		// Se il box ha un colore base salvato, applicalo
+		if (box.base_color) {
+		    // 1. Applica colore alle linee del box
+		    box.changeBoundingBoxColor(box.base_color);
 
-	// if (isRecording) {
-	// 	toggleRecord(event);
-	// }
+		}
+	    }
+	}
+
+
 }

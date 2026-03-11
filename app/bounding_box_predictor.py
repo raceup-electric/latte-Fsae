@@ -10,6 +10,7 @@ from frame_handler import FrameHandler
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import time
+import open3d as o3d
 
 class BoundingBoxPredictor():
     def __init__(self, frame_handler):
@@ -56,7 +57,121 @@ class BoundingBoxPredictor():
                                                            inv=True)[:2]
 
         return velocities
+        
+    def predict_next_frame_bounding_boxes(self, frame):
+        drivename, fname = frame.fname.split('.')[0].split("/")
+        idx = self.frame_handler.drives[drivename].index(fname)
+        next_fname = self.frame_handler.drives[drivename][idx+1]
 
+        # 1. Carica la pointcloud del prossimo frame (ground_removed)
+        next_pc = self.frame_handler.get_pointcloud(drivename, next_fname, dtype=float, ground_removed=True)
+
+        # 2. Ottieni l'Ego-Motion (Trasformazione Relativa)
+        # self.poses contiene le matrici 4x4 globali lette dagli OXTS.
+        # Calcoliamo la trasformazione dal frame attuale al prossimo
+        pose_curr = self.poses[drivename][idx]
+        pose_next = self.poses[drivename][idx+1]
+        
+        # Se OXTS è tutto zero, questa restituirà automaticamente la Matrice Identità.
+        # Nessun errore di 'Singular Matrix', matematica perfettamente sicura!
+        rel_transform = np.linalg.inv(pose_next) @ pose_curr
+
+        next_bounding_boxes = {}
+        
+        for bounding_box in frame.bounding_boxes:
+            # 3. Applica la logica Strict Match
+            try:
+                corrected_box = self._strict_predict_and_correct(bounding_box, next_pc, rel_transform)
+                if corrected_box is not None:
+                    next_bounding_boxes[str(bounding_box.box_id)] = corrected_box
+            except Exception as e:
+                print(f"Errore durante il tracking del box {bounding_box.box_id}: {e}")
+
+        return next_bounding_boxes
+
+    def _strict_predict_and_correct(self, bounding_box, next_pc, rel_transform, search_radius=0.5):
+        import open3d as o3d
+        
+        # Nel backend Python di LATTE, il piano terra è solitamente (X, Y) e l'altezza è Z.
+        # Creiamo il centro in coordinate omogenee 3D
+        cx, cy = bounding_box.center[0], bounding_box.center[1]
+        center_3d = np.array([cx, cy, 0.0, 1.0]) 
+            
+        # --- 1. PREDICT (Rototraslazione Odometria) ---
+        pred_center = rel_transform @ center_3d
+        px, py = pred_center[0], pred_center[1] 
+        
+        # Calcoliamo la variazione di angolo dall'odometria (Imbardata / Yaw)
+        yaw_diff = np.arctan2(rel_transform[1, 0], rel_transform[0, 0])
+        pred_angle = bounding_box.angle + yaw_diff
+
+        box_w = bounding_box.width
+        box_l = bounding_box.length
+
+        # --- 2. CROP (Region of Interest) ---
+        # Ritagliamo un quadrato attorno al punto predetto dall'odometria
+        mask_roi = (
+            (next_pc[:, 0] > px - search_radius) & (next_pc[:, 0] < px + search_radius) &
+            (next_pc[:, 1] > py - search_radius) & (next_pc[:, 1] < py + search_radius)
+        )
+        roi_points = next_pc[mask_roi]
+
+        # Falso Negativo: Il cono non c'è più
+        if len(roi_points) < 3:
+            return None 
+
+        # --- 3. CLUSTER (Open3D DBSCAN) ---
+        pcd = o3d.geometry.PointCloud()
+        # open3d vuole 3 coordinate, riempiamo Z (altezza) di zeri per il clustering 2D
+        points_3d = np.hstack((roi_points[:, :2], np.zeros((len(roi_points), 1))))
+        pcd.points = o3d.utility.Vector3dVector(points_3d)
+        
+        labels = np.array(pcd.cluster_dbscan(eps=0.2, min_points=3, print_progress=False))
+        unique_labels = np.unique(labels[labels >= 0])
+
+        # Falso Positivo: Troppi cluster (rumore, commissario, due coni vicini)
+        if len(unique_labels) != 1:
+            return None 
+
+        cluster_points = roi_points[labels == unique_labels[0]]
+
+        # --- 4. CHECK DIMENSIONALE STRICT ---
+        cluster_w = np.max(cluster_points[:, 0]) - np.min(cluster_points[:, 0])
+        cluster_l = np.max(cluster_points[:, 1]) - np.min(cluster_points[:, 1])
+        
+        max_box_dim = max(box_w, box_l)
+        tolerance = 0.15 # 15 cm di tolleranza
+        
+        # Falso Positivo: Il cluster è troppo grande per essere un cono
+        if (cluster_w > max_box_dim + tolerance) or (cluster_l > max_box_dim + tolerance):
+            return None 
+
+        # --- 5. CORRECT (Snap al centroide reale) ---
+        centroid_x = float(np.mean(cluster_points[:, 0]))
+        centroid_y = float(np.mean(cluster_points[:, 1]))
+        
+        # Calcoliamo i nuovi angoli (Corner 1 e 2) come si aspetta LATTE
+        theta = float(pred_angle)
+        w, l = float(box_w), float(box_l)
+        tr_local = np.array([w/2, l/2])
+        bl_local = np.array([-w/2, -l/2])
+        
+        rot_mat = np.array([[np.cos(theta), -np.sin(theta)], 
+                            [np.sin(theta), np.cos(theta)]])
+        
+        tr_rot = rot_mat @ tr_local + np.array([centroid_x, centroid_y])
+        bl_rot = rot_mat @ bl_local + np.array([centroid_x, centroid_y])
+        
+        # Restituiamo il dizionario formattato esattamente per il parsing di LATTE
+        return {
+            "center": [centroid_x, centroid_y],
+            "angle": theta,
+            "width": w,
+            "length": l,
+            "corner1": tr_rot.tolist(),
+            "corner2": bl_rot.tolist()
+        }
+    '''
     def predict_next_frame_bounding_boxes(self, frame):
         drivename, fname = frame.fname.split('.')[0].split("/")
         print(self.frame_handler.drives[drivename])
@@ -86,6 +201,7 @@ class BoundingBoxPredictor():
         # next_bounding_boxes = {str(bounding_box.box_id):self._predict_next_frame_bounding_box(bounding_box, next_pc_small) 
         #                         for bounding_box in bounding_boxes}
         return next_bounding_boxes
+    '''
 
     def _predict_next_frame_bounding_box(self, bounding_box, pc):
         start = time.time()
@@ -202,7 +318,7 @@ class BoundingBoxPredictor():
         dists, sample_indices = kd_tree.query(seeds)
 
 
-        cluster_res = self.find_cluster(sample_indices, png_trimmed, th_dist=.5, num_nn=20, num_samples=20)
+        cluster_res = self.find_cluster(sample_indices, png_trimmed, th_dist=.2, num_nn=20, num_samples=20)
         edges, corners = self.search_rectangle_fit(cluster_res["cluster"], variance_criterion)
 
         if plot:

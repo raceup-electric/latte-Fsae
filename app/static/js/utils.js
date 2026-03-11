@@ -108,16 +108,81 @@ function getOppositeCorner(idx) {
     if (idx == 2) {return 3;}
     return 2;
 }
-
+/*
 function containsPoint(box, v) {
-    var center = getCenter(box.boundingBox.max, box.boundingBox.min);
-    var diff = v.clone();
-    diff.sub(center);
-    var v1 = v.clone();
-    var v2 = center;
-    v2.sub(diff);
-    rotate(v1, v2, box.angle);
-    return box.boundingBox.containsPoint(v2);
+    // 1. Calcoliamo il centro del BoundingBox giallo
+    var center = new THREE.Vector3();
+    box.boundingBox.getCenter(center); // Riempie 'center' con le coordinate
+
+    // 2. Creiamo un punto di test basato sul cursore 'v'
+    var testPoint = v.clone();
+
+    // --- IL FIX FONDAMENTALE (Ignora Altezza) ---
+    // Forziamo l'altezza del punto di test ad essere esattamente al centro del box.
+    // In questo modo il controllo box.boundingBox.containsPoint() non fallirà mai sull'asse Y.
+    testPoint.y = center.y; 
+
+    // 3. Rotazione Inversa (Portiamo il punto nello spazio locale del box)
+    // Il box giallo (boundingBox) è allineato agli assi (AABB).
+    // Il box reale è ruotato di 'box.angle'.
+    // Per vedere se il punto è dentro, ruotiamo il punto all'indietro (-box.angle) attorno al centro.
+    
+    // Assumiamo che la funzione rotate(point, pivot, angle) sia disponibile (come in box.js)
+    rotate(testPoint, center, -box.angle);
+
+    // 4. Controllo standard AABB
+    return box.boundingBox.containsPoint(testPoint);
+}*/
+function containsPoint(box, v) {
+    // PROTEZIONE: Se il box non ha geometria (sta venendo creato), esci
+    if (!box.geometry || !box.geometry.vertices || box.geometry.vertices.length === 0) {
+        return false;
+    }
+
+    // 1. Troviamo l'altezza reale del box guardando i suoi vertici
+    // Prendiamo la Y del primo vertice (solitamente un angolo in basso)
+    var targetY = box.geometry.vertices[0].y;
+
+    // 2. Raycaster per trovare il punto del mouse a quell'altezza
+    var raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse2D, camera);
+
+    var plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -targetY);
+    var intersectionPoint = new THREE.Vector3();
+    
+    raycaster.ray.intersectPlane(plane, intersectionPoint);
+
+    if (!intersectionPoint) return false;
+
+    // 3. Calcoliamo il CENTRO REALE basandoci sui vertici visivi
+    // Facciamo la media delle coordinate X e Z di tutti i vertici
+    var cx = 0, cz = 0;
+    var numVertices = box.geometry.vertices.length;
+    
+    for (var i = 0; i < numVertices; i++) {
+        cx += box.geometry.vertices[i].x;
+        cz += box.geometry.vertices[i].z;
+    }
+    cx /= numVertices;
+    cz /= numVertices;
+
+    // 4. Calcoliamo il RAGGIO del box (distanza dal centro al vertice più lontano)
+    // Questo si adatta automaticamente a box Grandi o Piccoli
+    var maxRadius = 0;
+    for (var i = 0; i < numVertices; i++) {
+        var vx = box.geometry.vertices[i].x;
+        var vz = box.geometry.vertices[i].z;
+        var r = Math.sqrt(Math.pow(vx - cx, 2) + Math.pow(vz - cz, 2));
+        if (r > maxRadius) maxRadius = r;
+    }
+
+    // 5. Check Distanza Mouse - Centro
+    var distMouse = Math.sqrt(Math.pow(intersectionPoint.x - cx, 2) + Math.pow(intersectionPoint.z - cz, 2));
+
+    // Margine di tolleranza (15 cm)
+    var padding = 0.15;
+
+    return distMouse <= (maxRadius + padding);
 }
 
 

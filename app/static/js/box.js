@@ -1,6 +1,6 @@
 function Box(anchor, cursor, angle, boundingBox, boxHelper) {
     this.id = app.generate_new_box_id(); // id (int) of Box
-    this.object_id = 'car'; // object id (string)
+    this.object_id = 'UNKNOWN'; // object id (string)
     this.color = hover_color.clone(); // color of corner points
     this.angle = angle; // orientation of bounding box
     this.anchor = anchor; // point where bounding box was created
@@ -9,6 +9,8 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
     this.boundingBox = boundingBox; // Box3; sets the size of the box
     this.boxHelper = boxHelper; // BoxHelper; helps visualize the box
     this.geometry = new THREE.Geometry(); // geometry for corner/rotating points
+    this.base_color = 0xffffff;
+    this.GROUND_HEIGHT = -0.45;
 
     // visualizes the corners (in the non-rotated coordinates) of the box
     this.points = new THREE.Points( this.geometry, pointMaterial );
@@ -44,6 +46,7 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
     // we take the anchor and cursor, rotate them by the angle of the camera, draw the box, 
     // then rotate the box back
     this.resize = function(cursor) {
+    	//if(!can_modify)return;
         // checks and executes only if anchor does not overlap with cursor to avoid 0 determinant
         if (cursor.x != this.anchor.x && cursor.y != this.anchor.y && cursor.z != this.anchor.z) {
 
@@ -92,6 +95,65 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
             this.geometry.verticesNeedUpdate = true;
         }
     }
+    
+    // --- MODIFICA FORMULA STUDENT: Ridimensionamento Esplicito ---
+    this.setDimensions = function(width, length, height) {
+        // 1. Calcoliamo il CENTRO ATTUALE del box (coordinate globali)
+        // Usiamo i vertici opposti (0 e 1) per trovare il punto medio
+        var v0 = this.geometry.vertices[0];
+        var v1 = this.geometry.vertices[1];
+        
+        var center = getCenter(this.geometry.vertices[0], this.geometry.vertices[1]);
+
+        // 2. Aggiorniamo il "Guscio Giallo" (BoxHelper)
+        // Questo definisce la dimensione VISIVA del cubo.
+        // Lavoriamo in spazio LOCALE (non ruotato), quindi usiamo +/- metà dimensione
+        var hw = width / 2.0;  // Half Width
+        var hl = length / 2.0; // Half Length
+        
+        // Qui definiamo il volume 3D: da Y=0 a Y=height
+        this.boundingBox.min.set(-hw + center.x, this.GROUND_HEIGHT, -hl+center.z);
+        this.boundingBox.max.set(hw + center.x, this.GROUND_HEIGHT+height, hl+center.z);
+
+        // 3. Ricalcoliamo i 4 vertici rossi (Geometry)
+        // Creiamo i 4 angoli relativi al centro (0,0), poi li ruotiamo e trasliamo
+        
+        // Angoli locali (senza rotazione)
+        // Nota: L'ordine dei vertici in LATTE è un po' particolare, cerchiamo di rispettarlo
+        // 0: Max, 1: Min, 2: TopLeft, 3: BottomRight
+        var c0 = new THREE.Vector3(hw, 0, hl);   // (+, +)
+        var c1 = new THREE.Vector3(-hw, 0, -hl); // (-, -)
+        var c2 = new THREE.Vector3(-hw, 0, hl);  // (-, +)
+        var c3 = new THREE.Vector3(hw, 0, -hl);  // (+, -)
+
+        // Rotazione (attorno all'asse Y verticale)
+        var axis = new THREE.Vector3(0, 1, 0);
+        c0.applyAxisAngle(axis, this.angle);
+        c1.applyAxisAngle(axis, this.angle);
+        c2.applyAxisAngle(axis, this.angle);
+        c3.applyAxisAngle(axis, this.angle);
+
+        // Traslazione (Portiamo i punti al centro calcolato prima)
+        c0.add(center);
+        c1.add(center);
+        c2.add(center);
+        c3.add(center);
+
+        // 4. Applichiamo i nuovi vertici alla geometria
+        this.geometry.vertices[0].copy(c0);
+        this.geometry.vertices[1].copy(c1);
+        this.geometry.vertices[2].copy(c2);
+        this.geometry.vertices[3].copy(c3);
+        
+        // Aggiorniamo il punto di controllo (bottom center - usato per ruotare)
+        // Punto medio tra c1 e c3
+        var bottomCenter = new THREE.Vector3().addVectors(c1, c3).multiplyScalar(0.5);
+        this.geometry.vertices[4].copy(bottomCenter);
+
+        // 5. Notifichiamo Three.js degli aggiornamenti
+        this.geometry.verticesNeedUpdate = true;
+        //this.boxHelper.update(); // Fondamentale per vedere il cubo giallo cambiare
+    }
 
     // method to rotate bounding box by clicking and dragging rotate point, 
     // which is the top center point on the bounding box
@@ -129,7 +191,7 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
     }
 
     // method to translate bounding box given a reference point
-    this.translate = function(v) {
+    this.translate = function(v, height, cone) {
         // get difference in x and z coordinates between cursor when 
         // box was selected and current cursor position
         var dx = v.x - this.cursor.x;
@@ -145,22 +207,27 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
             p.z += dz;
         }
 
-        // shift bounding box given new corner points
-        var maxVector = this.geometry.vertices[0].clone();
-        var minVector = this.geometry.vertices[1].clone();
-        var topLeft = this.geometry.vertices[2].clone();
-        var bottomRight = this.geometry.vertices[3].clone();
-        var topCenter = getCenter(maxVector, topLeft);
-        var bottomCenter = this.geometry.vertices[4].clone();
+	// shift bounding box given new corner points
+	var maxVector = this.geometry.vertices[0].clone();
+	var minVector = this.geometry.vertices[1].clone();
+	var topLeft = this.geometry.vertices[2].clone();
+	var bottomRight = this.geometry.vertices[3].clone();
+	var topCenter = getCenter(maxVector, topLeft);
+	var bottomCenter = this.geometry.vertices[4].clone();
 
-        rotate(maxVector, minVector, this.angle);
-        rotate(topLeft, bottomRight, this.angle);
-        rotate(topCenter, bottomCenter, this.angle);
+	rotate(maxVector, minVector, this.angle);
+	rotate(topLeft, bottomRight, this.angle);
+	rotate(topCenter, bottomCenter, this.angle);
 
-        // need to do this to make matrix invertible
-        maxVector.y += 0.0000001; 
-
-        this.boundingBox.set(minVector, maxVector);
+	if(!cone){
+	    // need to do this to make matrix invertible
+	    maxVector.y += 0.0000001; 
+	    this.boundingBox.set(minVector, maxVector);
+	}else{
+	    // Qui definiamo il volume 3D: da Y=0 a Y=height
+	    this.boundingBox.min.set(minVector.x, this.GROUND_HEIGHT, minVector.z);
+	    this.boundingBox.max.set(maxVector.x, this.GROUND_HEIGHT+height, maxVector.z);
+	}
 
         // tell scene to update corner points
         this.geometry.verticesNeedUpdate = true;
@@ -186,6 +253,10 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
     // method to change color of bounding box
     this.changeBoundingBoxColor = function(color) {
         boxHelper.material.color.set(color);
+    }
+    
+    this.changeBaseColor = function(color){
+    	this.base_color = color;
     }
 
     this.output = function() {
@@ -261,29 +332,67 @@ Box.parseJSON = function(json_boxes) {
     var bounding_boxes = [], box;
     var json_box, center, top_right, bottom_left;
     var w, l, cx, cy, angle;
+    
     if (!Array.isArray(json_boxes)) {
         json_boxes = [json_boxes];
     }
+    
     for (var i = 0; i < json_boxes.length; i++) {
         json_box = json_boxes[i];
+        
         w = json_box['width'];
         l = json_box['length'];
         cx = json_box['center']['x'];
         cy = json_box['center']['y'];
         angle = json_box['angle'];
-
-        center = new THREE.Vector3(cy, 0, cx);
+        
         top_right = new THREE.Vector3(cy + l / 2, app.eps, cx + w / 2);
         bottom_left = new THREE.Vector3(cy - l / 2, 0, cx - w / 2);
+        center = getCenter(top_right, bottom_left);
         
-        // rotate cursor and anchor
         rotate(top_right, bottom_left, -angle);
         box = createBox(top_right, bottom_left, angle);
+        
         if (json_box.hasOwnProperty('box_id')) {
             box.id = json_box.box_id;
         }
+
+        // --- GESTIONE COLORE E DIMENSIONI ---
+        var colorHex = 0xffffff; // Default Bianco (Unknown)
+        var height = 0.0;        // Default altezza (Unknown)
+
+        if (json_box.hasOwnProperty('object_id')) {
+            box.object_id = json_box.object_id;
+            
+            // Analisi della Label
+            if (box.object_id.indexOf("SMALL") !== -1) {
+                // CONO PICCOLO
+                height = 0.325;
+                
+                if (box.object_id.indexOf("blue") !== -1) {
+                    colorHex = 0x0000ff; // Blu
+                } else if (box.object_id.indexOf("yellow") !== -1) {
+                    colorHex = 0xffff00; // Giallo
+                } else if (box.object_id.indexOf("orange") !== -1) {
+                    colorHex = 0xff7f00; // Arancione
+                }
+                
+                // Applica dimensioni SUBITO
+                box.setDimensions(w, l, height);
+
+            } else if (box.object_id.indexOf("BIG") !== -1) {
+                // CONO GRANDE
+                height = 0.505;
+                colorHex = 0xff7f00; // Arancione Big
+                
+                // Applica dimensioni SUBITO
+                box.setDimensions(w, l, height);
+            }
+        }
+        box.changeBaseColor(colorHex);
+        //box.changeBoundingBoxColor(new THREE.Color(box.base_color));
+        
         bounding_boxes.push(box);
-        console.log("output: ", bounding_boxes);
     }
     return bounding_boxes;
 }
@@ -390,7 +499,7 @@ function stringifyBoundingBoxes(boundingBoxes) {
 
 function createBox(anchor, v, angle) {
     newBoundingBox = new THREE.Box3(v, anchor);
-    newBoxHelper = new THREE.Box3Helper( newBoundingBox, 0xffff00 );
+    newBoxHelper = new THREE.Box3Helper( newBoundingBox, 0xffffff );
     newBox = new Box(anchor, v, angle, newBoundingBox, newBoxHelper);
     newBox.resize(v);
 
