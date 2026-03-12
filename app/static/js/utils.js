@@ -108,31 +108,7 @@ function getOppositeCorner(idx) {
     if (idx == 2) {return 3;}
     return 2;
 }
-/*
-function containsPoint(box, v) {
-    // 1. Calcoliamo il centro del BoundingBox giallo
-    var center = new THREE.Vector3();
-    box.boundingBox.getCenter(center); // Riempie 'center' con le coordinate
 
-    // 2. Creiamo un punto di test basato sul cursore 'v'
-    var testPoint = v.clone();
-
-    // --- IL FIX FONDAMENTALE (Ignora Altezza) ---
-    // Forziamo l'altezza del punto di test ad essere esattamente al centro del box.
-    // In questo modo il controllo box.boundingBox.containsPoint() non fallirà mai sull'asse Y.
-    testPoint.y = center.y; 
-
-    // 3. Rotazione Inversa (Portiamo il punto nello spazio locale del box)
-    // Il box giallo (boundingBox) è allineato agli assi (AABB).
-    // Il box reale è ruotato di 'box.angle'.
-    // Per vedere se il punto è dentro, ruotiamo il punto all'indietro (-box.angle) attorno al centro.
-    
-    // Assumiamo che la funzione rotate(point, pivot, angle) sia disponibile (come in box.js)
-    rotate(testPoint, center, -box.angle);
-
-    // 4. Controllo standard AABB
-    return box.boundingBox.containsPoint(testPoint);
-}*/
 function containsPoint(box, v) {
     // PROTEZIONE: Se il box non ha geometria (sta venendo creato), esci
     if (!box.geometry || !box.geometry.vertices || box.geometry.vertices.length === 0) {

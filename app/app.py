@@ -10,10 +10,42 @@ from pathlib import Path
 
 app = Flask(__name__, static_url_path='/static')
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+frame_cluster_cache = {}
 
 @app.route("/")
 def root():
     return render_template("index.html")
+    
+
+@app.route('/getFrameClustersData', methods=['POST'])
+def get_frame_clusters_data():
+    json_request = request.get_json()
+    fname = json_request["fname"]
+    drivename, fname = fname.split("/")
+
+    frame = fh.get_pointcloud(drivename, fname, dtype=float, ground_removed=True)
+    
+    # Get the dictionary mapping { cluster_idx: array_of_points }
+    cluster_dict = bp.extract_frame_clusters(frame)
+    
+    frame_cluster_cache[fname] = cluster_dict
+    
+    # Prepare the lightweight math metadata for the JS Frontend
+    metadata_response = []
+    
+    for cluster_idx, cluster_points in cluster_dict.items():
+        w = np.max(cluster_points[:, 0]) - np.min(cluster_points[:, 0])
+        l = np.max(cluster_points[:, 1]) - np.min(cluster_points[:, 1])
+        
+        metadata_response.append({
+            "idx": cluster_idx,
+            "x": float(np.mean(cluster_points[:, 0])),
+            "y": float(np.mean(cluster_points[:, 1])),
+            "w": float(w),
+            "l": float(l)
+        })
+        
+    return jsonify(metadata_response)
 
 @app.route("/initTracker", methods=["POST"])
 def init_tracker():
@@ -28,7 +60,6 @@ def trackBoundingBox():
     pointcloud = PointCloud.parse_json(json_request["pointcloud"], json_request["intensities"])
     filtered_indices = tracker.filter_pointcloud(pointcloud)
     next_bounding_boxes = tracker.predict_bounding_boxes(pointcloud)
-    print(next_bounding_boxes)
     return str([filtered_indices, next_bounding_boxes])
 
 @app.route("/updateBoundingBoxes", methods=['POST'])
@@ -74,6 +105,8 @@ def getJustPointCloud():
     data_str = fh.get_pointcloud(drivename, fname, dtype=str, ground_removed=ground_removed)
     return data_str
     
+
+
 @app.route("/predictBoundingBox", methods=['POST'])
 def predictBoundingBox():
     json_request = request.get_json()
@@ -95,7 +128,7 @@ def predictNextFrameBoundingBoxes():
     keys = list(res.keys())
     for key in keys:
         res[str(key)] = res.pop(key)
-    print(res)
+
     return str(res)
 
 @app.route("/loadAnnotation", methods=['POST'])
@@ -103,6 +136,8 @@ def loadAnnotation():
     json_request = request.get_json()
     fname = json_request["fname"]
     frame = fh.load_annotation(fname)
+   
+    
     return str(frame.bounding_boxes)
 
 if __name__ == "__main__":

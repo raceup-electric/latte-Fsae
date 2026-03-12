@@ -113,7 +113,6 @@ function predictLabel(boundingBox) {
             success: function(response) {
                 var label = parseInt(response.split(",")[0], 10);
                 var in_fov = response.split(",")[1] == "True";
-                console.log(response, in_fov);
                 boundingBox.hasPredictedLabel = true;
                 if (label != -1) {
                    updateLabel(boundingBox.id, label);
@@ -188,7 +187,6 @@ function onDocumentMouseMove( event ) {
 
         var cursor = getCurrentPosition();
         if (!controls.enabled) {
-            console.log("controls not enabled");
             // highlights all hover boxes that intersect with cursor
             updateHoverBoxes(cursor);
 
@@ -209,7 +207,6 @@ function updateHoverBoxes(v) {
             // added box to boverBoxes if cursor is within bounding box
             //if (v && containsPoint(box, v)) {
             if (containsPoint(box, null)) {
-                console.log("within");
                 hoverBoxes.push(box);
             }
 
@@ -306,7 +303,6 @@ function onDocumentMouseDown( event ) {
             if (intersection != null) {
                 var box = intersection[0];
                 var closestIdx = closestPoint(anchor, box.geometry.vertices);
-                // console.log("closest: ", closestIdx);
                 if (closestIdx == 4) {
                     isRotating = true;
                     rotatingBox = box;
@@ -529,7 +525,6 @@ function projectOntoXZ() {
 
 function unprojectFromXZ() {
     if (app.cur_frame) {
-        console.log("unproject");
         for (var i = 0; i < app.cur_pointcloud.geometry.vertices.length; i++) {
             var v = app.cur_pointcloud.geometry.vertices[i];
             v.y = app.cur_frame.ys[i];

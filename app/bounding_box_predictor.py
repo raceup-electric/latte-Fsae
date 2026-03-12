@@ -11,6 +11,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import time
 import open3d as o3d
+from sklearn.cluster import DBSCAN
 
 class BoundingBoxPredictor():
     def __init__(self, frame_handler):
@@ -45,7 +46,6 @@ class BoundingBoxPredictor():
         prev_frame_bounding_boxes = {box.box_id:box for box in prev_frame.bounding_boxes}
         for i, box in enumerate(bounding_boxes):
             box_id = box.box_id
-            print(box_id)
             cur_center = box.center
 
             if box_id in prev_frame_bounding_boxes:
@@ -120,7 +120,7 @@ class BoundingBoxPredictor():
         if len(roi_points) < 3:
             return None 
 
-        # --- 3. CLUSTER (Open3D DBSCAN) ---
+        # --- CLUSTER (Open3D DBSCAN) ---
         pcd = o3d.geometry.PointCloud()
         # open3d vuole 3 coordinate, riempiamo Z (altezza) di zeri per il clustering 2D
         points_3d = np.hstack((roi_points[:, :2], np.zeros((len(roi_points), 1))))
@@ -129,24 +129,21 @@ class BoundingBoxPredictor():
         labels = np.array(pcd.cluster_dbscan(eps=0.2, min_points=3, print_progress=False))
         unique_labels = np.unique(labels[labels >= 0])
 
-        # Falso Positivo: Troppi cluster (rumore, commissario, due coni vicini)
+        # troppi cluster
         if len(unique_labels) != 1:
             return None 
 
         cluster_points = roi_points[labels == unique_labels[0]]
 
-        # --- 4. CHECK DIMENSIONALE STRICT ---
         cluster_w = np.max(cluster_points[:, 0]) - np.min(cluster_points[:, 0])
         cluster_l = np.max(cluster_points[:, 1]) - np.min(cluster_points[:, 1])
         
         max_box_dim = max(box_w, box_l)
         tolerance = 0.15 # 15 cm di tolleranza
         
-        # Falso Positivo: Il cluster è troppo grande per essere un cono
         if (cluster_w > max_box_dim + tolerance) or (cluster_l > max_box_dim + tolerance):
             return None 
 
-        # --- 5. CORRECT (Snap al centroide reale) ---
         centroid_x = float(np.mean(cluster_points[:, 0]))
         centroid_y = float(np.mean(cluster_points[:, 1]))
         
@@ -171,80 +168,6 @@ class BoundingBoxPredictor():
             "corner1": tr_rot.tolist(),
             "corner2": bl_rot.tolist()
         }
-    '''
-    def predict_next_frame_bounding_boxes(self, frame):
-        drivename, fname = frame.fname.split('.')[0].split("/")
-        print(self.frame_handler.drives[drivename])
-        idx = self.frame_handler.drives[drivename].index(fname)
-        next_fname = self.frame_handler.drives[drivename][idx+1]
-
-        pc = self.frame_handler.get_pointcloud(drivename, fname, dtype=float, ground_removed=True)
-        next_pc = self.frame_handler.get_pointcloud(drivename, next_fname, dtype=float, ground_removed=True)
-        print(fname)
-        print([box.box_id for box in frame.bounding_boxes])
-        bounding_boxes = sorted(frame.bounding_boxes, 
-                            key=lambda box:box.box_id)
-        centers = {box.box_id:box.center for box in bounding_boxes}
-        velocities = {box_id:np.zeros(2) for box_id in centers.keys()}
-        
-        next_pc[:,2] = 0
-        next_pc = next_pc[:,:3]
-        np.random.shuffle(next_pc)
-        next_pc_small = next_pc[::4]
-        next_bounding_boxes = {}
-        for bounding_box in bounding_boxes:
-            try:
-                next_bounding_boxes[str(bounding_box.box_id)] = self._predict_next_frame_bounding_box(bounding_box, next_pc_small) 
-            except:
-                pass
-
-        # next_bounding_boxes = {str(bounding_box.box_id):self._predict_next_frame_bounding_box(bounding_box, next_pc_small) 
-        #                         for bounding_box in bounding_boxes}
-        return next_bounding_boxes
-    '''
-
-    def _predict_next_frame_bounding_box(self, bounding_box, pc):
-        start = time.time()
-        without_cluster, cluster = bounding_box.filter_pointcloud(pc)
-        np.random.shuffle(cluster)
-        sample_indices = []
-
-
-        kd_tree = cKDTree(pc)
-        # for point in cluster:
-        #     dists, nn_indices = kd_tree.query(point, 1)
-        #     sample_indices.append(nn_indices)
-        point = np.mean(cluster, axis=0)
-
-        #trim png
-        dists, ii = kd_tree.query(point, len(pc))
-        cutoff_idx = np.where(dists < 6)[0][-1]
-        pc_trimmed = pc[ii[:cutoff_idx]]
-        np.random.shuffle(pc_trimmed)
-
-        if pc_trimmed.shape[0] > 5000:
-            pc_trimmed = pc_trimmed[::4]
-        elif pc_trimmed.shape[0] > 2500:
-            pc_trimmed = pc_trimmed[::2]
-
-        pc_trimmed = pc_trimmed[::2]
-        kd_tree = cKDTree(pc_trimmed)
-
-        # Create random starting points for clustering algorithm
-        # std = .3
-        # seeds = np.random.randn(100, 3) * std + point
-        # seeds = np.vstack((point, seeds))
-        # seeds = kd_tree.query(point, 50)
-
-        dists, sample_indices = kd_tree.query(point, 50)
-
-
-        # cluster_res = self.find_cluster(sample_indices, pc_trimmed, th_dist=.4, num_nn=20, num_samples=20)
-        # edges, corners = self.search_rectangle_fit(cluster_res['cluster'], variance_criterion)
-        res = self.predict_bounding_box(point, pc, num_seeds=5, plot=False)
-        print("time to predict bounding box: ", time.time() - start)
-        # return self.corners_to_bounding_box(corners, context=bounding_box)
-        return res
 
     def corners_to_bounding_box(self, corners, context=None):
         sorted_corners = sorted(corners, key=lambda x:x[1])
@@ -284,7 +207,6 @@ class BoundingBoxPredictor():
 
     def predict_bounding_box(self, point, pc, num_seeds=5, plot=False):
         # png = self.ground_plane_fitting(pc)["png"]
-        print("point: {}".format(point))
         assert len(pc.shape) == 2, "pointcloud must have 2-dimensional shape"
         png = pc
         if png.shape[1] == 4:
@@ -296,13 +218,11 @@ class BoundingBoxPredictor():
 
         png[:,2] = 0
         kd_tree = cKDTree(png)
-        print(len(png))
 
         #trim png
         dists, ii = kd_tree.query(point, len(png))
         cutoff_idx = np.where(dists < 6)[0][-1]
         png_trimmed = png[ii[:cutoff_idx]]
-        print(png_trimmed.shape)
         np.random.shuffle(png_trimmed)
         if png_trimmed.shape[0] > 5000:
             png_trimmed = png_trimmed[::4]
@@ -330,6 +250,82 @@ class BoundingBoxPredictor():
 
         return self.corners_to_bounding_box(corners)
 
+
+    def extract_cluster(full_pc, box_x, box_y, box_w, box_l, search_radius=0.3):
+        """
+        Crops the point cloud around a bounding box, runs Open3D DBSCAN, 
+        and validates the cluster size against the box dimensions.
+        """
+        
+        # Using Euclidean distance in the XY plane
+        distances = np.sqrt((full_pc[:, 0] - box_x)**2 + (full_pc[:, 1] - box_y)**2)
+        roi_points = full_pc[distances <= search_radius]
+    
+        # Fast exit if the ROI is virtually empty
+        if len(roi_points) < 3: 
+            return None
+
+        # --- CLUSTER (Open3D DBSCAN) ---
+        pcd = o3d.geometry.PointCloud()
+    
+        points_3d = np.hstack((roi_points[:, :2], np.zeros((len(roi_points), 1))))
+        pcd.points = o3d.utility.Vector3dVector(points_3d)
+    
+        labels = np.array(pcd.cluster_dbscan(eps=0.2, min_points=3, print_progress=False))
+        unique_labels = np.unique(labels[labels >= 0])
+
+        # troppi cluster o nessun cluster valido
+        if len(unique_labels) != 1:
+            return None 
+
+        cluster_points = roi_points[labels == unique_labels[0]]
+
+        # Dimensional Validation
+        cluster_w = np.max(cluster_points[:, 0]) - np.min(cluster_points[:, 0])
+        cluster_l = np.max(cluster_points[:, 1]) - np.min(cluster_points[:, 1])
+    
+        max_box_dim = max(box_w, box_l)
+        tolerance = 0.15 # 15 cm di tolleranza
+    
+        if (cluster_w > max_box_dim + tolerance) or (cluster_l > max_box_dim + tolerance):
+            return None 
+
+        # Compute Centroid
+        centroid_x = float(np.mean(cluster_points[:, 0]))
+        centroid_y = float(np.mean(cluster_points[:, 1]))
+        
+        return {
+            "centroid_x": centroid_x,
+            "centroid_y": centroid_y,
+            "points": cluster_points 
+         }
+    
+    def extract_frame_clusters(self, full_pc):
+        """
+        Runs Open3D DBSCAN and returns a dictionary of clusters.
+        Format: { cluster_idx: np.array([Nx4 points]), ... }
+        """
+        pcd = o3d.geometry.PointCloud()
+    
+        points_3d = np.hstack((full_pc[:, :2], np.zeros((len(full_pc), 1))))
+        pcd.points = o3d.utility.Vector3dVector(points_3d)
+    
+        labels = np.array(pcd.cluster_dbscan(eps=0.2, min_points=3, print_progress=False))
+        unique_labels = np.unique(labels[labels >= 0])
+
+        # nessun cluster valido
+        if len(unique_labels) == 0:
+            return {} 
+        
+        res = dict()
+      
+        for lbl in unique_labels:
+            mask = (labels == lbl)
+        
+            res[int(lbl)] = full_pc[mask]
+          
+        return res
+    
     def plot_edges(self, corners, num_samples=100, c='r', label=''):
         for i in range(4):
             v1, v2 = corners[i], corners[(i+1)%4]
@@ -500,33 +496,6 @@ def closeness_criterion(C1, C2, d=1e-4):
         beta += 1/d
     return beta
 
-# if __name__ == '__main__':
-#   DATA_DIR = 'input/bin_data'
-#   OUT_DIR = 'input/ground_removed'
-#   bin_data  = sorted([f for f in listdir(DATA_DIR) 
-#                       if isfile(join(DATA_DIR, f)) and '.bin' in f])
-
-#   frame_names = [f.split(".")[0] for f in bin_data]
-#   print(frame_names)
-#   fh = FrameHandler()
-#   bp = BoundingBoxPredictor(fh)
-#   # fname1 = '0000000000'
-#   # fname2 = '0000000001'
-
-#   # frame1 = fh.load_annotation(fname1)
-#   # frame2 = fh.load_annotation(fname2)
-
-#   # print(bp.predict_next_frame_bounding_boxes(frame2))
-#   for fname in frame_names:
-#       read_filename = join(DATA_DIR, fname.split(".")[0] + ".bin")
-#       data = np.fromfile(read_filename, dtype=np.float32)
-#       data = data.reshape((-1,4))[:,:3]
-#       print('input shape: {}'.format(data.shape))
-#       output = bp.ground_plane_fitting(data)['png']
-#       output = np.hstack((output, np.zeros((len(output), 1))))
-#       print('output shape: {}'.format(output.shape))
-#       save_filename = join(OUT_DIR, fname.split(".")[0] + ".bin")
-#       output.astype(np.float32).tofile(save_filename)
 
 
 

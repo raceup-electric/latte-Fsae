@@ -7,6 +7,8 @@ function Frame(fname, data) {
 	this.evaluator = new Evaluator();
 	this.annotated = false;
 	this.mask_rcnn_indices = [];
+	this.clusters_loaded = false;
+	this.clusters_metadata = [];
 
 	var k = 0;
     for ( var i = 0, l = this.data.length / DATA_STRIDE; i < l; i ++ ) {

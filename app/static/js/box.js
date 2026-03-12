@@ -10,6 +10,7 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
     this.boxHelper = boxHelper; // BoxHelper; helps visualize the box
     this.geometry = new THREE.Geometry(); // geometry for corner/rotating points
     this.base_color = 0xffffff;
+    this.associatedClusterIdx = null;
     this.GROUND_HEIGHT = -0.45;
 
     // visualizes the corners (in the non-rotated coordinates) of the box
@@ -39,6 +40,67 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
         var center3D = getCenter(this.geometry.vertices[0], this.geometry.vertices[1]);
         return new THREE.Vector2(center3D.z, center3D.x);
     }
+    
+    this.validateAssociatedCluster = function() {
+        // Ensure the global app has loaded the clusters for the current frame
+        if (!app.cur_frame || !app.cur_frame.cluster_metadata) {
+            this.associatedClusterIdx = null;
+            return;
+        }
+
+        var MAX_RADIUS = 0.3; 
+        var TOLERANCE = 0.2;
+
+        var closestIdx = null; 
+        var minDistance = Infinity;
+        var count_close = 0;
+        
+        // Use the box's actual calculated center, not just the top-left vertex
+        var center3D = getCenter(this.geometry.vertices[0], this.geometry.vertices[1]);
+        
+        for (var j = 0; j < app.cur_frame.cluster_metadata.length; j++) {
+            var cluster = app.cur_frame.cluster_metadata[j];
+            
+            // Note: LATTE often uses X/Z for the ground plane. 
+            // The cluster x/y from Python maps to X/Z in Three.js
+            var dx = center3D.z - cluster.x;
+            var dy = center3D.x - cluster.y; 
+            var distance = Math.sqrt(dx*dx + dy*dy);
+
+            if (distance <= MAX_RADIUS) {
+                // Calculate actual width/length based on the vertices
+                var currentWidth = distance2D(this.geometry.vertices[1], this.geometry.vertices[2]);
+                var currentLength = distance2D(this.geometry.vertices[0], this.geometry.vertices[2]);
+                var maxBoxDim = Math.max(currentWidth, currentLength);
+                var minBoxDim = Math.min(currentWidth, currentLength);
+
+                if (cluster.w <= maxBoxDim + TOLERANCE && cluster.l <= maxBoxDim + TOLERANCE &&
+                	cluster.w >= minBoxDim - TOLERANCE && cluster.l >= minBoxDim - TOLERANCE) {
+                	
+                    minDistance = distance;
+                    closestIdx = cluster.idx;
+                    count_close++;
+                }
+            }
+        }
+        if(count_close == 1)
+        	this.associatedClusterIdx = closestIdx;
+        else
+        	this.associatedClusterIdx = null;
+        
+        if (this.text_label && this.text_label.element) {
+            if (this.associatedClusterIdx === null) {
+                // Missing/Ambiguous Cluster: Turn text Red and make it bold so it stands out
+                this.text_label.element.style.color = '#ff0000';
+                this.text_label.element.style.fontWeight = 'bold';
+            } else {
+                // Valid Cluster: Turn text White and reset weight
+                this.text_label.element.style.color = '#ffffff';
+                this.text_label.element.style.fontWeight = 'normal';
+            }
+        }
+        	
+    };
    
     // method for resizing bounding box given cursor coordinates
     // 
@@ -93,6 +155,8 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
 
             // tell scene to update corner points
             this.geometry.verticesNeedUpdate = true;
+            
+            this.validateAssociatedCluster();
         }
     }
     
@@ -153,6 +217,8 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
         // 5. Notifichiamo Three.js degli aggiornamenti
         this.geometry.verticesNeedUpdate = true;
         //this.boxHelper.update(); // Fondamentale per vedere il cubo giallo cambiare
+        
+        this.validateAssociatedCluster();
     }
 
     // method to rotate bounding box by clicking and dragging rotate point, 
@@ -188,6 +254,8 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
         // tell scene to update corner points
         this.geometry.verticesNeedUpdate = true;
         
+        this.validateAssociatedCluster();
+        
     }
 
     // method to translate bounding box given a reference point
@@ -207,30 +275,31 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
             p.z += dz;
         }
 
-	// shift bounding box given new corner points
-	var maxVector = this.geometry.vertices[0].clone();
-	var minVector = this.geometry.vertices[1].clone();
-	var topLeft = this.geometry.vertices[2].clone();
-	var bottomRight = this.geometry.vertices[3].clone();
-	var topCenter = getCenter(maxVector, topLeft);
-	var bottomCenter = this.geometry.vertices[4].clone();
+		// shift bounding box given new corner points
+		var maxVector = this.geometry.vertices[0].clone();
+		var minVector = this.geometry.vertices[1].clone();
+		var topLeft = this.geometry.vertices[2].clone();
+		var bottomRight = this.geometry.vertices[3].clone();
+		var topCenter = getCenter(maxVector, topLeft);
+		var bottomCenter = this.geometry.vertices[4].clone();
 
-	rotate(maxVector, minVector, this.angle);
-	rotate(topLeft, bottomRight, this.angle);
-	rotate(topCenter, bottomCenter, this.angle);
+		rotate(maxVector, minVector, this.angle);
+		rotate(topLeft, bottomRight, this.angle);
+		rotate(topCenter, bottomCenter, this.angle);
 
-	if(!cone){
-	    // need to do this to make matrix invertible
-	    maxVector.y += 0.0000001; 
-	    this.boundingBox.set(minVector, maxVector);
-	}else{
-	    // Qui definiamo il volume 3D: da Y=0 a Y=height
-	    this.boundingBox.min.set(minVector.x, this.GROUND_HEIGHT, minVector.z);
-	    this.boundingBox.max.set(maxVector.x, this.GROUND_HEIGHT+height, maxVector.z);
-	}
+		if(!cone){
+			// need to do this to make matrix invertible
+			maxVector.y += 0.0000001; 
+			this.boundingBox.set(minVector, maxVector);
+		}else{
+			// Qui definiamo il volume 3D: da Y=0 a Y=height
+			this.boundingBox.min.set(minVector.x, this.GROUND_HEIGHT, minVector.z);
+			this.boundingBox.max.set(maxVector.x, this.GROUND_HEIGHT+height, maxVector.z);
+		}
 
         // tell scene to update corner points
         this.geometry.verticesNeedUpdate = true;
+        this.validateAssociatedCluster();
     }
 
     // method to highlight box given cursor
@@ -332,6 +401,7 @@ Box.parseJSON = function(json_boxes) {
     var bounding_boxes = [], box;
     var json_box, center, top_right, bottom_left;
     var w, l, cx, cy, angle;
+    var associated_cluster_idx;
     
     if (!Array.isArray(json_boxes)) {
         json_boxes = [json_boxes];
@@ -345,6 +415,7 @@ Box.parseJSON = function(json_boxes) {
         cx = json_box['center']['x'];
         cy = json_box['center']['y'];
         angle = json_box['angle'];
+        
         
         top_right = new THREE.Vector3(cy + l / 2, app.eps, cx + w / 2);
         bottom_left = new THREE.Vector3(cy - l / 2, 0, cx - w / 2);
@@ -390,7 +461,8 @@ Box.parseJSON = function(json_boxes) {
             }
         }
         box.changeBaseColor(colorHex);
-        //box.changeBoundingBoxColor(new THREE.Color(box.base_color));
+        
+        box.associatedClusterIdx = json_box['associated_cluster_idx']
         
         bounding_boxes.push(box);
     }
@@ -562,5 +634,6 @@ function OutputBox(box) {
     this.length = distance2D(v1, v3);
     this.angle = box.angle;
     this.object_id = box.object_id;
-    this.timestamps = box.timestamps;
+    // this.timestamps = box.timestamps;
+    this.associated_cluster_idx = box.associatedClusterIdx;
 }

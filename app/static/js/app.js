@@ -57,7 +57,7 @@ function App() {
 			return false;
 		}
 	};
-this.updateAnnotationVisibility = function() {
+	this.updateAnnotationVisibility = function() {
         if (!this.cur_frame || !this.cur_frame.bounding_boxes) return;
         
         var boxes = this.cur_frame.bounding_boxes;
@@ -131,6 +131,27 @@ this.updateAnnotationVisibility = function() {
             }
         });
     };
+    this.load_frame_clusters = function(frame) {
+        if (!frame || frame.clusters_loaded) return
+
+        $.ajax({
+            context: this,
+            url: '/getFrameClustersData', // The Python route we built earlier
+            type: 'POST',
+            contentType: 'application/json;charset=UTF-8',
+            data: JSON.stringify({ fname: frame.fname }),
+            success: function(cluster_metadata) {
+                // Cache the lightweight math data
+                frame.cluster_metadata = cluster_metadata;
+                frame.clusters_loaded = true;
+                
+                console.log("NUM CLUSTERS in this frame: " + cluster_metadata.length);
+            },
+            error: function(err) {
+                console.log("Error caching frame clusters: ", err);
+            }
+        });
+    };
 
     this.set_frame = function(fname) {
         var frame = this.get_frame(fname);
@@ -179,6 +200,8 @@ this.updateAnnotationVisibility = function() {
                             }
                         }
                         this.frames[fname] = frame; // Salva in cache
+                        
+                        this.load_frame_clusters(frame);
                     }
 
                     this.predict_next_frame_bounding_box(this.get_prev_fname(fname));
@@ -216,8 +239,6 @@ this.updateAnnotationVisibility = function() {
             return;
         }
 
-        console.log("Tracking (Ego-Motion + Open3D) da: ", fname, " a ", next_fname);
-        console.log(prev_frame.bounding_boxes.length)
 
         $.ajax({
             context: this,
@@ -229,7 +250,6 @@ this.updateAnnotationVisibility = function() {
                 // Parsing robusto della risposta stringata di Python
                 var res = response.split("\'").join("\"");
                 res = JSON.parse(res);
-                console.log(res)
                 
                 var old_boxes_map = {};
                 for (var i = 0; i < prev_frame.bounding_boxes.length; i++) {
@@ -243,7 +263,6 @@ this.updateAnnotationVisibility = function() {
                         var json_box = res[box_id_str];
                         var box_id = parseInt(box_id_str);
                         var old_box = old_boxes_map[box_id];
-                        console.log(box_id)
 
                         // Attenzione: LATTE scambia Y e X tra Python e Three.js
                         var corner1 = new THREE.Vector3(json_box.corner1[1], this.eps, json_box.corner1[0]);
@@ -377,7 +396,6 @@ this.updateAnnotationVisibility = function() {
 				contentType: 'application/json;charset=UTF-8',
 				data: JSON.stringify({fname: this.cur_frame.fname, point: clickPoint}),
 				success: function(response) {
-					console.log(response);
 					var str = response.replace(/'/g, "\"");
 					var res = JSON.parse(str);
 	
@@ -408,7 +426,6 @@ this.updateAnnotationVisibility = function() {
 		if (!prev_frame) {
 			return;
 		}
-		console.log("show prev frame: ", this.show_prev_frame);
 		if (!this.show_prev_frame) {
 			this.show_prev_frame = true;
 			prev_frame.scene_add_frame_bounding_box();
@@ -424,7 +441,6 @@ this.updateAnnotationVisibility = function() {
 		if (this.cur_frame) {
 			this.cur_frame.evaluator.pause_recording();
 			var output_frame = this.cur_frame.output();
-			console.log(output_frame);
 			var output = {"frame": output_frame};
 			var stringifiedOutput = JSON.stringify(output);
 			$.ajax({
@@ -617,7 +633,14 @@ this.updateAnnotationVisibility = function() {
 }
 
 function parsePythonJSON(json) {
-	return JSON.parse(json.split("\'").join("\""));
+    var formattedStr = json.split("\'").join("\"");
+    
+    // Translate Python keywords to valid JSON keywords
+    formattedStr = formattedStr.replace(/None/g, "null");
+    formattedStr = formattedStr.replace(/False/g, "false");
+    formattedStr = formattedStr.replace(/True/g, "true");
+    
+    return JSON.parse(formattedStr);
 }
 
 function show(frame) {
@@ -646,14 +669,14 @@ function show(frame) {
 	
 	if (app.cur_frame.bounding_boxes) {
 	    for (var i = 0; i < app.cur_frame.bounding_boxes.length; i++) {
-		var box = app.cur_frame.bounding_boxes[i];
-		    
-		// Se il box ha un colore base salvato, applicalo
-		if (box.base_color) {
-		    // 1. Applica colore alle linee del box
-		    box.changeBoundingBoxColor(box.base_color);
+			var box = app.cur_frame.bounding_boxes[i];
+				
+			// Se il box ha un colore base salvato, applicalo
+			if (box.base_color) {
+				// 1. Applica colore alle linee del box
+				box.changeBoundingBoxColor(box.base_color);
 
-		}
+			}
 	    }
 	}
 

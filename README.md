@@ -1,13 +1,16 @@
 # LATTE-Fsae: 3D LiDAR Annotation Tool (Formula Student Edition)
 
 LATTE-Fsae is a highly customized fork of the [original LATTE annotation tool](https://github.com/bernwang/latte), tailored and optimized specifically for **Formula Student Driverless (FSAE)** applications. It streamlines the process of annotating 3D LiDAR point clouds to train perception models for track limits (cones).
+
 ## Key Features & Upgrades
 
 * **Intensity-Based Visualization:** Replaced the default height-based colormap with a high-contrast Jet Colormap based on LiDAR intensity
 * **Adaptive Ground Removal Toggle:** A dedicated UI button to instantly hide/show the ground plane without losing annotations or reloading the page
 * **FSAE Official Labels:** Bounding boxes and labels are mapped to the official Formula Student rules (e.g., Blue Cone, Yellow Cone, Orange Cone, Big Orange Cone).
-* **Simple Tracking:** uses Open3D DBSCAN clustering to perfectly "snap" bounding boxes to the cones in the next frame, compensating for car movement and drastically reducing manual labeling time.
+* **Simple Tracking:** Uses Open3D DBSCAN clustering to perfectly "snap" bounding boxes to the cones in the next frame, compensating for car movement and drastically reducing manual labeling time.
+* **Label-cluster association:** Checks wheter a bounding box can be associated (position & dimension) to a cluster on that frame
 * Overall **usability upgrade**.
+
 ##  Installation 
 
 1. Clone the repository:
