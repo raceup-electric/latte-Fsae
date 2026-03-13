@@ -247,7 +247,6 @@ function App() {
             type: 'POST',
             contentType: 'application/json;charset=UTF-8',
             success: function(response) {
-                // Parsing robusto della risposta stringata di Python
                 var res = response.split("\'").join("\"");
                 res = JSON.parse(res);
                 
@@ -257,58 +256,74 @@ function App() {
                     old_boxes_map[b.id] = b;
                 }
 
-                for (var box_id_str in res) {
-                    if (res.hasOwnProperty(box_id_str)) {
+                // --- THE SMART TIMESHIFT ---
+                // We wrap the box-creation logic in a function so it can pause itself
+                var applyTrackingWhenReady = function() {
+                    
+                    // If the clusters haven't arrived from Python yet, wait 50ms and try again!
+                    if (!next_frame.clusters_loaded || !next_frame.cluster_metadata) {
+                        console.log("Timeshift: Waiting 50ms for clusters to load...");
+                        setTimeout(applyTrackingWhenReady, 50);
+                        return; // Stop executing for now
+                    }
 
-                        var json_box = res[box_id_str];
-                        var box_id = parseInt(box_id_str);
-                        var old_box = old_boxes_map[box_id];
+                    // Once we pass the check above, the clusters are GUARANTEED to be here.
+                    for (var box_id_str in res) {
+                        if (res.hasOwnProperty(box_id_str)) {
+                            var json_box = res[box_id_str];
+                            var box_id = parseInt(box_id_str);
+                            var old_box = old_boxes_map[box_id];
 
-                        // Attenzione: LATTE scambia Y e X tra Python e Three.js
-                        var corner1 = new THREE.Vector3(json_box.corner1[1], this.eps, json_box.corner1[0]);
-                        var corner2 = new THREE.Vector3(json_box.corner2[1], 0, json_box.corner2[0]);
-                        
-                        var box = createBox(corner1, corner2, json_box['angle']);
-                        
-                        box.id = box_id;
-                        
-                        if (old_box) {
-                            box.object_id = old_box.object_id; // Es. "SMALL-blue"
+                            var corner1 = new THREE.Vector3(json_box.corner1[1], app.eps, json_box.corner1[0]);
+                            var corner2 = new THREE.Vector3(json_box.corner2[1], 0, json_box.corner2[0]);
                             
-      
-                            box.boundingBox.min.y = old_box.boundingBox.min.y;
-                            box.boundingBox.max.y = old_box.boundingBox.max.y;
+                            var box = createBox(corner1, corner2, json_box['angle']);
+                            box.id = box_id;
                             
-                            box.geometry.verticesNeedUpdate = true;
-                            if (box.boxHelper.update) box.boxHelper.update();
-
-                            if (old_box.base_color) {
-                                box.base_color = old_box.base_color;
-                                box.changeBaseColor(box.base_color);
-                                box.changeBoundingBoxColor(box.base_color);
-                            }
-                        }
-
-                        
-                        next_frame.bounding_boxes.push(box);
-                        box.add_text_label();
-                        
-                        if (this.cur_frame === next_frame) {
-                            scene.add(box.points);
-                            scene.add(box.boxHelper);
-                            if (typeof addObjectRow === "function") {
-                                addObjectRow(box);
+                            if (old_box) {
+                                box.object_id = old_box.object_id;
                                 
-                                if (box.object_id) {
-                                    var select = $(OBJECT_TABLE).find(".object_row_id:contains('" + box.id + "')").closest("tr").find("select");
-                                    select.val(box.object_id);
+                                // Inherit dimensions and ground
+                                var old_w = distance2D(old_box.geometry.vertices[0], old_box.geometry.vertices[2]);
+                                var old_l = distance2D(old_box.geometry.vertices[1], old_box.geometry.vertices[2]);
+                                var old_h = old_box.boundingBox.max.y - old_box.boundingBox.min.y;
+                                
+                                box.GROUND_HEIGHT = old_box.GROUND_HEIGHT;
+                                box.setDimensions(old_w, old_l, old_h);
+
+                                if (old_box.base_color) {
+                                    box.base_color = old_box.base_color;
+                                    box.changeBaseColor(box.base_color);
+                                }
+                            }
+
+                            next_frame.bounding_boxes.push(box);
+                            box.add_text_label();
+                            
+                            // Now we can safely validate because we forced it to wait!
+                            box.validateAssociatedCluster();
+                            
+                            if (app.cur_frame === next_frame) {
+                                scene.add(box.points);
+                                scene.add(box.boxHelper);
+                                if (typeof addObjectRow === "function") {
+                                    addObjectRow(box);
+                                    if (box.object_id) {
+                                        var select = $(OBJECT_TABLE).find(".object_row_id:contains('" + box.id + "')").closest("tr").find("select");
+                                        select.val(box.object_id);
+                                    }
                                 }
                             }
                         }
-                        next_frame.annotated = true;
                     }
-                }
-                //next_frame.annotated = true;
+                    next_frame.annotated = true;
+                    
+                    // Force UI to update the newly validated red/white text colors
+                    if (typeof render === 'function') render();
+                };
+
+                // Kick off the loop
+                applyTrackingWhenReady();
             },
             error: function(error) {
                 console.log("Errore nel tracking backend: ", error);
