@@ -11,7 +11,7 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
     this.geometry = new THREE.Geometry(); // geometry for corner/rotating points
     this.base_color = 0xffffff;
     this.associatedClusterIdx = null;
-    this.GROUND_HEIGHT = -0.45;
+    this.GROUND_HEIGHT = 0;
 
     // visualizes the corners (in the non-rotated coordinates) of the box
     this.points = new THREE.Points( this.geometry, pointMaterial );
@@ -44,7 +44,7 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
     this.validateAssociatedCluster = function() {
         // Ensure the global app has loaded the clusters for the current frame
         if (!app.cur_frame || !app.cur_frame.cluster_metadata) {
-            this.associatedClusterIdx = null;
+            // this.associatedClusterIdx = null;
             return;
         }
 
@@ -99,8 +99,32 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
                 this.text_label.element.style.fontWeight = 'normal';
             }
         }
-        	
-    };
+        var _this = this; // store reference to the box
+		$.ajax({
+		    url: '/getClusterMinZ',
+		    type: 'POST',
+		    contentType: 'application/json;charset=UTF-8',
+		    data: JSON.stringify({ fname: app.cur_frame.fname, cluster_idx: _this.associatedClusterIdx }),
+		    success: function(response) {
+		        if (response.status === "success") {
+		            _this.GROUND_HEIGHT = response.min_z;
+		            
+		            
+                    var height = (_this.object_id.indexOf("UNKNOWN") == -1) ? ((_this.object_id.indexOf("BIG") == -1) ? 																									0.325 : 0.505) :
+                    															0.00001;
+                    
+                    // 3. Update ONLY the vertical limits of the 3D bounding box
+                    _this.boundingBox.min.y = _this.GROUND_HEIGHT;
+                    _this.boundingBox.max.y = _this.GROUND_HEIGHT + height;
+                    
+                    // 4. Force Three.js to redraw the yellow outline at the new height
+                    if (_this.boxHelper && _this.boxHelper.update) {
+                        _this.boxHelper.update();
+                    }
+                }
+            }
+        });
+    }
    
     // method for resizing bounding box given cursor coordinates
     // 
@@ -130,10 +154,13 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
             var bottomCenter = getCenter(minVector, bottomRight);
 
             // need to do this to make matrix invertible
-            maxVector.y = 0.00001; 
+            //maxVector.y = 0.00001; 
 
             // setting bounding box limits
-            this.boundingBox.set(minVector.clone(), maxVector.clone());
+            //this.boundingBox.set(minVector.clone(), maxVector.clone());
+            
+            this.boundingBox.min.set(minVector.x, this.GROUND_HEIGHT, minVector.z);
+			this.boundingBox.max.set(maxVector.x, this.GROUND_HEIGHT+0.00001, maxVector.z);
 
             // rotate BoxHelper back
             this.boxHelper.rotation.y = this.angle;
@@ -289,8 +316,8 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
 
 		if(!cone){
 			// need to do this to make matrix invertible
-			maxVector.y += 0.0000001; 
-			this.boundingBox.set(minVector, maxVector);
+			this.boundingBox.min.set(minVector.x, this.GROUND_HEIGHT, minVector.z);
+			this.boundingBox.max.set(maxVector.x, this.GROUND_HEIGHT+0.00001, maxVector.z);
 		}else{
 			// Qui definiamo il volume 3D: da Y=0 a Y=height
 			this.boundingBox.min.set(minVector.x, this.GROUND_HEIGHT, minVector.z);
@@ -355,6 +382,14 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
         text.setParent(this.boxHelper);
         container.appendChild(text.element);
         this.text_label = text;
+        
+        if (this.associatedClusterIdx == null) {
+            this.text_label.element.style.color = '#ff0000';
+            this.text_label.element.style.fontWeight = 'bold';
+        } else {
+            this.text_label.element.style.color = '#ffffff';
+            this.text_label.element.style.fontWeight = 'normal';
+        }
     }
 
     this.create_text_label = function() {
@@ -401,7 +436,6 @@ Box.parseJSON = function(json_boxes) {
     var bounding_boxes = [], box;
     var json_box, center, top_right, bottom_left;
     var w, l, cx, cy, angle;
-    var associated_cluster_idx;
     
     if (!Array.isArray(json_boxes)) {
         json_boxes = [json_boxes];
@@ -416,7 +450,6 @@ Box.parseJSON = function(json_boxes) {
         cy = json_box['center']['y'];
         angle = json_box['angle'];
         
-        
         top_right = new THREE.Vector3(cy + l / 2, app.eps, cx + w / 2);
         bottom_left = new THREE.Vector3(cy - l / 2, 0, cx - w / 2);
         center = getCenter(top_right, bottom_left);
@@ -428,47 +461,52 @@ Box.parseJSON = function(json_boxes) {
             box.id = json_box.box_id;
         }
 
+        // --- NEW: Load Ground Height and Cluster ID ---
+        if (json_box.hasOwnProperty('ground') && json_box['ground'] !== null) {
+            box.GROUND_HEIGHT = json_box['ground'];
+        }
+
+        if (json_box.hasOwnProperty('associated_cluster_idx')) {
+            box.associatedClusterIdx = json_box['associated_cluster_idx'];
+            console.log(box.associatedClusterIdx);
+        }
+
         // --- GESTIONE COLORE E DIMENSIONI ---
-        var colorHex = 0xffffff; // Default Bianco (Unknown)
-        var height = 0.0;        // Default altezza (Unknown)
+        var colorHex = 0xffffff; 
+        var height = 0.00001;        
 
         if (json_box.hasOwnProperty('object_id')) {
             box.object_id = json_box.object_id;
             
-            // Analisi della Label
             if (box.object_id.indexOf("SMALL") !== -1) {
-                // CONO PICCOLO
                 height = 0.325;
-                
                 if (box.object_id.indexOf("blue") !== -1) {
-                    colorHex = 0x0000ff; // Blu
+                    colorHex = 0x0000ff; 
                 } else if (box.object_id.indexOf("yellow") !== -1) {
-                    colorHex = 0xffff00; // Giallo
+                    colorHex = 0xffff00; 
                 } else if (box.object_id.indexOf("orange") !== -1) {
-                    colorHex = 0xff7f00; // Arancione
+                    colorHex = 0xff7f00; 
                 }
                 
-                // Applica dimensioni SUBITO
+                // Because we loaded box.GROUND_HEIGHT above, this will position it perfectly!
                 box.setDimensions(w, l, height);
 
             } else if (box.object_id.indexOf("BIG") !== -1) {
-                // CONO GRANDE
                 height = 0.505;
-                colorHex = 0xff7f00; // Arancione Big
-                
-                // Applica dimensioni SUBITO
+                colorHex = 0xff7f00; 
+                box.setDimensions(w, l, height);
+            }
+            else {
                 box.setDimensions(w, l, height);
             }
         }
-        box.changeBaseColor(colorHex);
         
-        box.associatedClusterIdx = json_box['associated_cluster_idx']
+        box.changeBaseColor(colorHex);
         
         bounding_boxes.push(box);
     }
     return bounding_boxes;
 }
-
 
 // gets angle between v1 and v2 with respect to origin
 //
@@ -574,7 +612,7 @@ function createBox(anchor, v, angle) {
     newBoxHelper = new THREE.Box3Helper( newBoundingBox, 0xffffff );
     newBox = new Box(anchor, v, angle, newBoundingBox, newBoxHelper);
     newBox.resize(v);
-
+	newBox.angle = angle;
     return newBox;
 }
 
@@ -624,16 +662,20 @@ function deleteSelectedBox() {
 
 
 function OutputBox(box) {
-    var v1 = box.geometry.vertices[0];
-    var v2 = box.geometry.vertices[1];
-    var v3 = box.geometry.vertices[2];
+    var v1 = box.geometry.vertices[0]; // Max
+    var v2 = box.geometry.vertices[1]; // Min
+    var v3 = box.geometry.vertices[2]; // TopLeft
     var center = getCenter(v1, v2);
     this.box_id = box.id;
     this.center = new THREE.Vector2(center.z, center.x);
-    this.width = distance2D(v2, v3);
-    this.length = distance2D(v1, v3);
+    
+    // THE FIX: Swap v1 and v2 in these two lines!
+    this.width = distance2D(v1, v3);  // Max to TopLeft measures the X-axis (Width)
+    this.length = distance2D(v2, v3); // Min to TopLeft measures the Z-axis (Length)
+    
     this.angle = box.angle;
     this.object_id = box.object_id;
     // this.timestamps = box.timestamps;
     this.associated_cluster_idx = box.associatedClusterIdx;
+    this.ground = box.GROUND_HEIGHT;
 }
