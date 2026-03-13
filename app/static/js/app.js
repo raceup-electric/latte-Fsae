@@ -290,11 +290,12 @@ function App() {
                                 
                                 box.GROUND_HEIGHT = old_box.GROUND_HEIGHT;
                                 box.setDimensions(old_w, old_l, old_h);
-
                                 if (old_box.base_color) {
                                     box.base_color = old_box.base_color;
                                     box.changeBaseColor(box.base_color);
+                                    box.changeBoundingBoxColor(box.base_color);
                                 }
+
                             }
 
                             next_frame.bounding_boxes.push(box);
