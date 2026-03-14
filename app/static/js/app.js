@@ -12,7 +12,7 @@ function App() {
 	this.controls = {};
 	this.lock_frame = false;
 	this.use_ground_removed = false;
-    	this.show_annotations = true;
+    this.show_annotations = true;
 
 	this.init = function() {
 		$.ajax({
@@ -124,7 +124,6 @@ function App() {
                 
                 // Rigenera i punti 3D e li sostituisce a schermo
                 generatePointCloud();
-                scene.add(this.cur_pointcloud);
             },
             error: function(error) {
                 console.log("Errore nel download della point cloud: ", error);

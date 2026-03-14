@@ -416,6 +416,10 @@ function generatePointCloud() {
     if (app.cur_pointcloud != null) {
         if (app.cur_pointcloud.material) {
             currentSize = app.cur_pointcloud.material.size;
+            app.cur_pointcloud.material.dispose();
+        }
+        if (app.cur_pointcloud.geometry) {
+            app.cur_pointcloud.geometry.dispose();
         }
         scene.remove(app.cur_pointcloud);
     }
