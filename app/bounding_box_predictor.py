@@ -26,6 +26,8 @@ class BoundingBoxPredictor():
         self.oxts = {drive: load_oxts_lite_data(join(FrameHandler.DATASET_DIR, drive), self.frame_handler.drives[drive]) 
                     for drive in self.frame_handler.drives.keys()}
         self.poses = {drive: oxts2pose(self.oxts[drive]) for drive in self.oxts.keys()}
+        
+        self.cluster_eps = 0.1;
 
     def transform_coords(self, fname, x, inv=False):
         if x.size == 2:
@@ -126,7 +128,7 @@ class BoundingBoxPredictor():
         points_3d = np.hstack((roi_points[:, :2], np.zeros((len(roi_points), 1))))
         pcd.points = o3d.utility.Vector3dVector(points_3d)
         
-        labels = np.array(pcd.cluster_dbscan(eps=0.2, min_points=3, print_progress=False))
+        labels = np.array(pcd.cluster_dbscan(eps=self.cluster_eps, min_points=3, print_progress=False))
         unique_labels = np.unique(labels[labels >= 0])
 
         # troppi cluster
@@ -238,7 +240,7 @@ class BoundingBoxPredictor():
         dists, sample_indices = kd_tree.query(seeds)
 
 
-        cluster_res = self.find_cluster(sample_indices, png_trimmed, th_dist=.2, num_nn=20, num_samples=20)
+        cluster_res = self.find_cluster(sample_indices, png_trimmed, th_dist=self.cluster_eps, num_nn=20, num_samples=20)
         edges, corners = self.search_rectangle_fit(cluster_res["cluster"], variance_criterion)
 
         if plot:
@@ -271,7 +273,7 @@ class BoundingBoxPredictor():
         points_3d = np.hstack((roi_points[:, :2], np.zeros((len(roi_points), 1))))
         pcd.points = o3d.utility.Vector3dVector(points_3d)
     
-        labels = np.array(pcd.cluster_dbscan(eps=0.2, min_points=3, print_progress=False))
+        labels = np.array(pcd.cluster_dbscan(eps=self.cluster_eps, min_points=3, print_progress=False))
         unique_labels = np.unique(labels[labels >= 0])
 
         # troppi cluster o nessun cluster valido
@@ -310,7 +312,7 @@ class BoundingBoxPredictor():
         points_3d = np.hstack((full_pc[:, :2], np.zeros((len(full_pc), 1))))
         pcd.points = o3d.utility.Vector3dVector(points_3d)
     
-        labels = np.array(pcd.cluster_dbscan(eps=0.2, min_points=3, print_progress=False))
+        labels = np.array(pcd.cluster_dbscan(eps=self.cluster_eps, min_points=3, print_progress=False))
         unique_labels = np.unique(labels[labels >= 0])
 
         # nessun cluster valido
