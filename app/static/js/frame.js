@@ -9,6 +9,7 @@ function Frame(fname, data) {
 	this.mask_rcnn_indices = [];
 	this.clusters_loaded = false;
 	this.clusters_metadata = [];
+	this.is_ground_removed = false;
 
 	var k = 0;
     for ( var i = 0, l = this.data.length / DATA_STRIDE; i < l; i ++ ) {

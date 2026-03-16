@@ -121,6 +121,13 @@ function App() {
                 var data = response.split(',').map(x => parseFloat(x));
                 this.cur_frame.data = data;
                 this.cur_frame.is_ground_removed = this.use_ground_removed; // Salva stato nella cache
+                this.cur_frame.ys = [];
+		        var k = 0;
+		        var stride = typeof DATA_STRIDE !== 'undefined' ? DATA_STRIDE : 4; 
+		        for ( var i = 0, l = data.length / stride; i < l; i ++ ) {
+		        	this.cur_frame.ys.push(data[ stride * k + 2 ]);
+		        	k++;
+		        }
                 
                 // Rigenera i punti 3D e li sostituisce a schermo
                 generatePointCloud();
@@ -153,68 +160,80 @@ function App() {
     };
 
     this.set_frame = function(fname) {
-        var frame = this.get_frame(fname);
-        
-        if (this.cur_frame == frame || this.lock_frame) {
-            return;
-        } 
-        if (this.cur_frame) {
-            this.write_frame_out();
-            this.cur_frame.scene_remove_frame_children();    
-            this.show_prev_frame = false;    
-        }
-        
-        if (frame && frame.is_ground_removed === this.use_ground_removed) {
-            show(frame);
-            this.predict_next_frame_bounding_box(this.get_prev_fname(fname));
-            this.updateAnnotationVisibility();
-        } else {
-            $.ajax({
-                context: this,
-                url: '/getFramePointCloud',
-                data: JSON.stringify({fname: fname, ground_removed: this.use_ground_removed}),
-                type: 'POST',
-                contentType: 'application/json;charset=UTF-8',
-                success: function(response) {
-                    var data, res, annotation, bounding_boxes_json, bounding_boxes, box;
-                    res = response.split('?');
-                    data = res[0].split(',').map(x => parseFloat(x));
-                    
-                    if (frame) {
-                        frame.data = data;
-                        frame.is_ground_removed = this.use_ground_removed;
-                    } else {
-                        frame = new Frame(fname, data);
-                        frame.is_ground_removed = this.use_ground_removed;
+		var frame = this.get_frame(fname);
+		
+		if (this.cur_frame == frame || this.lock_frame) {
+		    return;
+		} 
+		if (this.cur_frame) {
+		    this.write_frame_out();
+		    this.cur_frame.scene_remove_frame_children();   
+		    this.show_prev_frame = false;   
+		}
+		
+		if (frame && frame.is_ground_removed === this.use_ground_removed) {
+		    show(frame);
+		    this.updateAnnotationVisibility();
+		} else {
+		    $.ajax({
+		        context: this,
+		        url: '/getFramePointCloud',
+		        data: JSON.stringify({fname: fname, ground_removed: this.use_ground_removed}),
+		        type: 'POST',
+		        contentType: 'application/json;charset=UTF-8',
+		        success: function(response) {
+		            var data, res, annotation, bounding_boxes_json, bounding_boxes, box;
+		            res = response.split('?');
+		            
+		            data = res[0].split(',')
+		                         .filter(x => x.trim() !== '') 
+		                         .map(x => parseFloat(x));
+		            
+		            if (frame) {
+		                frame.data = data;
+		                frame.is_ground_removed = this.use_ground_removed;
+		                
+		                frame.ys = [];
+		                var k = 0;
+		                var stride = typeof DATA_STRIDE !== 'undefined' ? DATA_STRIDE : 4; 
+		                for ( var i = 0, l = frame.data.length / stride; i < l; i ++ ) {
+		                    frame.ys.push(frame.data[ stride * k + 2 ]);
+		                    k++;
+		                }
+		                
+		            } else {
+		                // Creating a brand new frame
+		                frame = new Frame(fname, data);
+		                frame.is_ground_removed = this.use_ground_removed;
 
-                        if (res.length > 1 && res[1].length > 0)  {
-                            annotation = parsePythonJSON(res[1]);
-                            bounding_boxes_json = Object.values(annotation["frame"]["bounding_boxes"]);
-                            bounding_boxes = Box.parseJSON(bounding_boxes_json);
-                            for (var i = 0; i < bounding_boxes.length; i++) {
-                                box = bounding_boxes[i];
-                                frame.bounding_boxes.push(box);
-                                box.add_text_label();
-                                frame.annotated = true;
-                            }
-                        }
-                        this.frames[fname] = frame; // Salva in cache
-                        
-                        this.load_frame_clusters(frame);
-                    }
+		                if (res.length > 1 && res[1].length > 0)  {
+		                    annotation = parsePythonJSON(res[1]);
+		                    bounding_boxes_json = Object.values(annotation["frame"]["bounding_boxes"]);
+		                    bounding_boxes = Box.parseJSON(bounding_boxes_json);
+		                    for (var i = 0; i < bounding_boxes.length; i++) {
+		                        box = bounding_boxes[i];
+		                        frame.bounding_boxes.push(box);
+		                        box.add_text_label();
+		                        frame.annotated = true;
+		                    }
+		                }
+		                this.frames[fname] = frame; // Salva in cache
+		                
+		                this.load_frame_clusters(frame);
+		            }
 
-                    this.predict_next_frame_bounding_box(this.get_prev_fname(fname));
-                    
-                    show(frame);
-                    
-                    this.updateAnnotationVisibility();
-                },
-                error: function(error) {
-                    console.log(error);
-                }
-            });
-        }
-    };
+		            this.predict_next_frame_bounding_box(this.get_prev_fname(fname));
+		            
+		            show(frame);
+		            
+		            this.updateAnnotationVisibility();
+		        },
+		        error: function(error) {
+		            console.log(error);
+		        }
+		    });
+		}
+	};
 	this.predict_next_frame_bounding_box = function(fname) {
         if (!enable_bounding_box_tracking) {
             return;
@@ -672,7 +691,6 @@ function show(frame) {
 	generatePointCloud();
 
 	if (initPointCloud) {
-		scene.add( app.cur_pointcloud )
 		animate();
 	}
 	app.cur_frame.scene_add_frame_children();
