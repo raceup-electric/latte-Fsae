@@ -378,9 +378,9 @@ function render() {
 function update_footer(pos) {
     var reminder_text = "";
     if (isRecording) {
-        if (app.move2D) {
+        if (true) {
             if (controls.enabled == true) {
-                reminder_text = "Hold control key and click on point cloud to start drawing bounding box";
+                reminder_text = "Hold CTRL to draw/move/resize/rotate a box;  Hold A and click on a cluster for auto-drawing;";
             } else {
                 if (isResizing) {
                     reminder_text = "Release mouse to stop resizing box";
@@ -409,7 +409,27 @@ function update_footer(pos) {
     $("#footer").find("p").html("x: {0}{1}y: {2}".format(x.toFixed(3), 
                                                         "<br />", 
                                                         y.toFixed(3)));
+                                                        
 }
+
+function updateLabelStats() {
+
+    if (typeof app === 'undefined' || !app.cur_frame || !app.cur_frame.bounding_boxes) {
+        return;
+    }
+
+    var totalLabels = app.cur_frame.bounding_boxes.length;
+    var associatedCount = 0;
+
+    for (var i = 0; i < totalLabels; i++) {
+        if (app.cur_frame.bounding_boxes[i].associatedClusterIdx !== null) {
+            associatedCount++;
+        }
+    }
+
+    $("#label_counter_display").find("p").html("Labels: {0} | Associated: {1}".format(totalLabels, associatedCount));
+}
+
 
 function generatePointCloud() {
     var currentSize = typeof pointSize !== 'undefined' ? pointSize : 0.05; 

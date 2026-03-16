@@ -696,6 +696,8 @@ function show(frame) {
 	loadObjectTable();
 	switchMoveMode();
 	
+	updateLabelStats();
+	
 	// Questo loop forza l'applicazione del colore salvato (base_color)
 	// a tutti i box appena aggiunti alla scena.
 	

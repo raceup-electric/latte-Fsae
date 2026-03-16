@@ -124,6 +124,7 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
                 }
             }
         });
+        updateLabelStats();
     }
    
     // method for resizing bounding box given cursor coordinates
@@ -600,6 +601,7 @@ function addBox(box) {
     app.cur_frame.bounding_boxes.push(box);
     addObjectRow(box);
     box.add_text_label();
+    updateLabelStats();
 }
 
 function stringifyBoundingBoxes(boundingBoxes) {
@@ -660,6 +662,8 @@ function deleteSelectedBox() {
         app.increment_delete_count();
         // removes selected box
         selectedBox = null;
+        
+        updateLabelStats();
     }
 }
 
