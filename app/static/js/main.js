@@ -71,6 +71,7 @@ function init() {
 
     //
     controls = new THREE.OrbitControls( camera, renderer.domElement );
+    controls.keyPanSpeed = 30.0;
 
     window.addEventListener( 'resize', onWindowResize, false );
     document.getElementById('container').addEventListener( 'mousemove', onDocumentMouseMove, false );

@@ -52,12 +52,20 @@ app
 
 ## Usage & Controls
 
+### (Top Left)
+* **Save btn:** saves the annotation for the current frame in the output folder
+* **3D view btn:** set view mode in 3D
+* **2D view btn:** set view mode in 2D
+
 ### The Control Panel (Top Right)
 Use the integrated control panel to adjust the visualizer:
 * **Point Size slider:** Adjusts the thickness of the LiDAR points in real-time
 * **Tracking Search Radius slider:** Adjusts the search_radius used to crop the search area in the Tracking function
 * **Remove/Restore ground:** Swaps between the `bin_data` and `ground_removed` clouds instantly
 * **Hide/Show labels** 
+
+>[!WARNING] 
+>* Tracking is done only when the next frame is NON-labeled (there is no file associated to that frame in the ouput folder)
 
 ### Actions
 * **One-click bounding box draw:** Hold the `a` key, then click a point in the cluster and the tool will draw a bounding box
@@ -66,9 +74,14 @@ Use the integrated control panel to adjust the visualizer:
 * **Rotation:** Hold `ctrl` then click&drag the box's red high-mid point
 * **Resizing:** Hold `ctrl` then click&drag a box's red corner
 * **Deletion:** Press the `canc` key while the box is selected in the boxes list
+* **See the prev frame boxes:** Press the `z` key to inspect the previous frame boxes
 
 >[!WARNING] 
 >* Bounding boxes anchor points (red dots) stay always at 0 height, actions on bounding boxes have to be performed at 0 height accordingly (e.g: for translation of a box click & draw from the red dots center, whatever height the bounding lines have)
+
+### Navigate/move
+* **Mouse left** to move the view
+* **Mouse right / arrows** to translate the camera position
 
 ### UI utilities
 * **Colored labels:** The color of the object's ID label indicated whether the bounding box is associated to a cluster or not (white if associated, red if not)

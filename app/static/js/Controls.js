@@ -1,5 +1,5 @@
-var pointSize = 1.0;
-var searchRadius = 0.5;
+var pointSize = 1.0; // Set a default starting size
+var searchRadius = 0.5; // Default search radius for prediction
 
 var SettingsControls = function() {
     this.size = pointSize;
@@ -24,15 +24,12 @@ settingsFolder.add(settingsControls, 'size').min(0.05).max(1.5).step(0.05).name(
     }
 });
 
+// 2. Search Radius Slider
 settingsFolder.add(settingsControls, 'searchRadius').min(0.1).max(1.0).step(0.1).name(" Tracking search Radius").onChange(function() {
     searchRadius = settingsControls.searchRadius; // Update global variable
-    
-    // If you need the app to re-run predictions immediately when this changes, 
-    // you would call an app function here. Otherwise, it just saves the value 
-    // for the next time a prediction happens.
 });
 
-// 2. Add our two toggles as buttons right under the slider
+// 3. Add our two toggles as buttons right under the slider
 settingsFolder.add(settingsControls, 'toggleGround').name('Remove/Restore ground');
 settingsFolder.add(settingsControls, 'toggleAnnotations').name('Hide/Show labels');
 
@@ -58,13 +55,28 @@ function toggleRecord() {
         controls.update();
     }
 }
+
 // controller for pressing hotkeys
 function onKeyDown2(event) {
+    var KeyID = event.keyCode;
+
+    // --- STRICT FOCUS & SCROLL TRAP ---
+    if (KeyID >= 37 && KeyID <= 40) {
+        var active = document.activeElement;
+        // Only allow arrows if you are actively typing in a text box
+        if (active && active.tagName === "INPUT" && active.type === "text") {
+            // Do nothing, let the user type
+        } else {
+            event.preventDefault(); // STOP the table/div from scrolling!
+            if (active) active.blur(); // Drop focus back to the 3D canvas
+        }
+    }
+
     if (isRecording) {
         if (event.ctrlKey) {
             toggleControl(false);
         }
-        var KeyID = event.keyCode;
+        
         switch(KeyID)
         {
             case 8: // backspace
@@ -87,7 +99,6 @@ function onKeyDown2(event) {
             break;
         }
     }   
-    
 }
 
 // controller for releasing hotkeys
@@ -98,9 +109,10 @@ function onKeyUp2(event) {
         {
             case 65:
             autoDrawModeToggle(false);
-          default:
-          toggleControl(true);
-          break;
+            break;
+            default:
+            toggleControl(true);
+            break;
         }
     }
 }
@@ -108,16 +120,21 @@ function onKeyUp2(event) {
 function showPreviousFrameBoundingBoxToggle(b) {
     app.show_previous_frame_bounding_box();
 }
+
 function autoDrawModeToggle(b) {
     autoDrawMode = b;
 }
+
 // toggles between move2D and move3D
 function toggleControl(b) {
     if (b) {
         controls.enabled = b;
         controls.update();
     } else {
-        if (app.move2D) {
+        // Safely check for move2D regardless of where it was declared
+        var isMove2D = (typeof move2D !== 'undefined' && move2D) || (typeof app !== 'undefined' && app.move2D);
+        
+        if (isMove2D) {
             controls.enabled = b;
             controls.update();
         }
@@ -140,16 +157,29 @@ function updateCroppedImagePanel(child) {
         $("#panel2").find("img").attr({'src': "static/images/cropped_image.jpg?foo=" + new Date().getTime()});
         $("#panel2").slideDown( "slow" );
     }
-    
 }
 
 // controller for pressing hotkeys
 function onKeyDown(event) {
+    var KeyID = event.keyCode;
+
+    // --- STRICT FOCUS & SCROLL TRAP ---
+    if (KeyID >= 37 && KeyID <= 40) {
+        var active = document.activeElement;
+        // Only allow arrows if you are actively typing in a text box
+        if (active && active.tagName === "INPUT" && active.type === "text") {
+            // Do nothing, let the user type
+        } else {
+            event.preventDefault(); // STOP the table/div from scrolling!
+            if (active) active.blur(); // Drop focus back to the 3D canvas
+        }
+    }
+
     if (isRecording) {
         if (event.ctrlKey) {
             toggleControl(false);
         }
-        var KeyID = event.keyCode;
+        
         switch(KeyID)
         {
             case 8: // backspace
@@ -171,30 +201,17 @@ function onKeyUp(event) {
         var KeyID = event.keyCode;
         switch(KeyID)
         {
-          default:
-          toggleControl(true);
-          break;
-        }
-    }
-}
-
-// toggles between move2D and move3D
-function toggleControl(b) {
-    if (b) {
-        controls.enabled = b;
-        controls.update();
-    } else {
-        if (move2D) {
-            controls.enabled = b;
-            controls.update();
+            default:
+            toggleControl(true);
+            break;
         }
     }
 }
 
 function clearTable() {
     for (var i = 0; i < boundingBoxes.length; i++) {
-            box = boundingBoxes[i];
-            deleteRow(box.id);
-        }
+        var box = boundingBoxes[i];
+        deleteRow(box.id);
+    }
     id = 0;
 }
