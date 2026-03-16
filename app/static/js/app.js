@@ -205,6 +205,7 @@ function App() {
 		                // Creating a brand new frame
 		                frame = new Frame(fname, data);
 		                frame.is_ground_removed = this.use_ground_removed;
+		                this.load_frame_clusters(frame);
 
 		                if (res.length > 1 && res[1].length > 0)  {
 		                    annotation = parsePythonJSON(res[1]);
@@ -218,8 +219,6 @@ function App() {
 		                    }
 		                }
 		                this.frames[fname] = frame; // Salva in cache
-		                
-		                this.load_frame_clusters(frame);
 		            }
 
 		            this.predict_next_frame_bounding_box(this.get_prev_fname(fname));

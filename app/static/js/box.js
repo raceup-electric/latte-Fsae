@@ -131,7 +131,7 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
     // since BoxHelper3 draws a box in the same orientation as that of the point cloud, 
     // we take the anchor and cursor, rotate them by the angle of the camera, draw the box, 
     // then rotate the box back
-    this.resize = function(cursor) {
+    this.resize = function(cursor, validate_cluster=true) {
     	//if(!can_modify)return;
         // checks and executes only if anchor does not overlap with cursor to avoid 0 determinant
         if (cursor.x != this.anchor.x && cursor.y != this.anchor.y && cursor.z != this.anchor.z) {
@@ -183,12 +183,14 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
             // tell scene to update corner points
             this.geometry.verticesNeedUpdate = true;
             
-            this.validateAssociatedCluster();
+            if(validate_cluster){
+        		this.validateAssociatedCluster();
+        	}
         }
     }
     
     // --- MODIFICA FORMULA STUDENT: Ridimensionamento Esplicito ---
-    this.setDimensions = function(width, length, height) {
+    this.setDimensions = function(width, length, height, validate_cluster=true) {
         // 1. Calcoliamo il CENTRO ATTUALE del box (coordinate globali)
         // Usiamo i vertici opposti (0 e 1) per trovare il punto medio
         var v0 = this.geometry.vertices[0];
@@ -245,7 +247,9 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
         this.geometry.verticesNeedUpdate = true;
         //this.boxHelper.update(); // Fondamentale per vedere il cubo giallo cambiare
         
-        this.validateAssociatedCluster();
+        if(validate_cluster){
+        	this.validateAssociatedCluster();
+        }
     }
 
     // method to rotate bounding box by clicking and dragging rotate point, 
@@ -281,12 +285,10 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
         // tell scene to update corner points
         this.geometry.verticesNeedUpdate = true;
         
-        this.validateAssociatedCluster();
-        
     }
 
     // method to translate bounding box given a reference point
-    this.translate = function(v, height, cone) {
+    this.translate = function(v, height, cone, validate_cluster=true) {
         // get difference in x and z coordinates between cursor when 
         // box was selected and current cursor position
         var dx = v.x - this.cursor.x;
@@ -326,7 +328,9 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
 
         // tell scene to update corner points
         this.geometry.verticesNeedUpdate = true;
-        this.validateAssociatedCluster();
+        if(validate_cluster){
+        	this.validateAssociatedCluster();
+        }
     }
 
     // method to highlight box given cursor
@@ -455,7 +459,7 @@ Box.parseJSON = function(json_boxes) {
         center = getCenter(top_right, bottom_left);
         
         rotate(top_right, bottom_left, -angle);
-        box = createBox(top_right, bottom_left, angle);
+        box = createBox(top_right, bottom_left, angle, false);
         
         if (json_box.hasOwnProperty('box_id')) {
             box.id = json_box.box_id;
@@ -468,7 +472,6 @@ Box.parseJSON = function(json_boxes) {
 
         if (json_box.hasOwnProperty('associated_cluster_idx')) {
             box.associatedClusterIdx = json_box['associated_cluster_idx'];
-            console.log(box.associatedClusterIdx);
         }
 
         // --- GESTIONE COLORE E DIMENSIONI ---
@@ -489,15 +492,15 @@ Box.parseJSON = function(json_boxes) {
                 }
                 
                 // Because we loaded box.GROUND_HEIGHT above, this will position it perfectly!
-                box.setDimensions(w, l, height);
+                box.setDimensions(w, l, height, false);
 
             } else if (box.object_id.indexOf("BIG") !== -1) {
                 height = 0.505;
                 colorHex = 0xff7f00; 
-                box.setDimensions(w, l, height);
+                box.setDimensions(w, l, height, false);
             }
             else {
-                box.setDimensions(w, l, height);
+                box.setDimensions(w, l, height, false);
             }
         }
         
@@ -607,11 +610,11 @@ function stringifyBoundingBoxes(boundingBoxes) {
     return outputBoxes;
 }
 
-function createBox(anchor, v, angle) {
+function createBox(anchor, v, angle, validate_cluster=true) {
     newBoundingBox = new THREE.Box3(v, anchor);
     newBoxHelper = new THREE.Box3Helper( newBoundingBox, 0xffffff );
     newBox = new Box(anchor, v, angle, newBoundingBox, newBoxHelper);
-    newBox.resize(v);
+    newBox.resize(v, validate_cluster);
 	newBox.angle = angle;
     return newBox;
 }
