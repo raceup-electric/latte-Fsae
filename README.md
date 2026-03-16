@@ -52,11 +52,12 @@ app
 
 ## Usage & Controls
 
-### The UI Panel (Top Right)
+### The Control Panel (Top Right)
 Use the integrated control panel to adjust the visualizer:
-* **Point Size:** Adjusts the thickness of the LiDAR points in real-time
-* **Hide/Show Asphalt:** Swaps between the `bin_data` and `ground_removed` clouds instantly
-* **Hide/Show Boxes** 
+* **Point Size slider:** Adjusts the thickness of the LiDAR points in real-time
+* **Tracking Search Radius slider:** Adjusts the search_radius used to crop the search area in the Tracking function
+* **Remove/Restore ground:** Swaps between the `bin_data` and `ground_removed` clouds instantly
+* **Hide/Show labels** 
 
 ### Actions
 * **One-click bounding box draw:** Hold the `a` key, then click a point in the cluster and the tool will draw a bounding box
@@ -70,6 +71,6 @@ Use the integrated control panel to adjust the visualizer:
 >* Bounding boxes anchor points (red dots) stay always at 0 height, actions on bounding boxes have to be performed at 0 height accordingly (e.g: for translation of a box click & draw from the red dots center, whatever height the bounding lines have)
 
 ### UI utilities
-* **Colored label:** The color of the object's ID label indicated whether the bounding box is associated to a cluster or not (white if associated, red if not)
+* **Colored labels:** The color of the object's ID label indicated whether the bounding box is associated to a cluster or not (white if associated, red if not)
 * **Auto adjusting height** based on associated clusters
 
