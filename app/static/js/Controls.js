@@ -1,7 +1,9 @@
-var pointSize = 1.0; // Set a default starting size (0.05 is good for Formula Student)
+var pointSize = 1.0;
+var searchRadius = 0.5;
 
 var SettingsControls = function() {
     this.size = pointSize;
+    this.searchRadius = searchRadius;
     // Bind the functions to the app context if it exists, otherwise do nothing safely
     this.toggleGround = function() { if (typeof app !== 'undefined') app.toggleGroundRemoved(); };
     this.toggleAnnotations = function() { if (typeof app !== 'undefined') app.toggleAnnotations(); };
@@ -20,6 +22,14 @@ settingsFolder.add(settingsControls, 'size').min(0.05).max(1.5).step(0.05).name(
         app.cur_pointcloud.material.size = pointSize;
         app.cur_pointcloud.material.needsUpdate = true;
     }
+});
+
+settingsFolder.add(settingsControls, 'searchRadius').min(0.1).max(1.0).step(0.1).name(" Tracking search Radius").onChange(function() {
+    searchRadius = settingsControls.searchRadius; // Update global variable
+    
+    // If you need the app to re-run predictions immediately when this changes, 
+    // you would call an app function here. Otherwise, it just saves the value 
+    // for the next time a prediction happens.
 });
 
 // 2. Add our two toggles as buttons right under the slider

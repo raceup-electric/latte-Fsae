@@ -261,7 +261,7 @@ function App() {
         $.ajax({
             context: this,
             url: '/predictNextFrameBoundingBoxes',
-            data: JSON.stringify({fname: fname}),
+            data: JSON.stringify({fname: fname, search_radius: searchRadius}),
             type: 'POST',
             contentType: 'application/json;charset=UTF-8',
             success: function(response) {

@@ -60,7 +60,7 @@ class BoundingBoxPredictor():
 
         return velocities
         
-    def predict_next_frame_bounding_boxes(self, frame):
+    def predict_next_frame_bounding_boxes(self, frame, searchRadius):
         drivename, fname = frame.fname.split('.')[0].split("/")
         idx = self.frame_handler.drives[drivename].index(fname)
         next_fname = self.frame_handler.drives[drivename][idx+1]
@@ -83,7 +83,7 @@ class BoundingBoxPredictor():
         for bounding_box in frame.bounding_boxes:
             # 3. Applica la logica Strict Match
             try:
-                corrected_box = self._strict_predict_and_correct(bounding_box, next_pc, rel_transform)
+                corrected_box = self._strict_predict_and_correct(bounding_box, next_pc, rel_transform, search_radius=searchRadius)
                 if corrected_box is not None:
                     next_bounding_boxes[str(bounding_box.box_id)] = corrected_box
             except Exception as e:
@@ -94,12 +94,10 @@ class BoundingBoxPredictor():
     def _strict_predict_and_correct(self, bounding_box, next_pc, rel_transform, search_radius=0.5):
         import open3d as o3d
         
-        # Nel backend Python di LATTE, il piano terra è solitamente (X, Y) e l'altezza è Z.
-        # Creiamo il centro in coordinate omogenee 3D
         cx, cy = bounding_box.center[0], bounding_box.center[1]
         center_3d = np.array([cx, cy, 0.0, 1.0]) 
             
-        # --- 1. PREDICT (Rototraslazione Odometria) ---
+        # (Rototraslazione Odometria) ---
         pred_center = rel_transform @ center_3d
         px, py = pred_center[0], pred_center[1] 
         
@@ -110,19 +108,17 @@ class BoundingBoxPredictor():
         box_w = bounding_box.width
         box_l = bounding_box.length
 
-        # --- 2. CROP (Region of Interest) ---
-        # Ritagliamo un quadrato attorno al punto predetto dall'odometria
         mask_roi = (
             (next_pc[:, 0] > px - search_radius) & (next_pc[:, 0] < px + search_radius) &
             (next_pc[:, 1] > py - search_radius) & (next_pc[:, 1] < py + search_radius)
         )
         roi_points = next_pc[mask_roi]
 
-        # Falso Negativo: Il cono non c'è più
+        # Il cono non c'è più
         if len(roi_points) < 3:
             return None 
 
-        # --- CLUSTER (Open3D DBSCAN) ---
+        # (Open3D DBSCAN) 
         pcd = o3d.geometry.PointCloud()
         # open3d vuole 3 coordinate, riempiamo Z (altezza) di zeri per il clustering 2D
         points_3d = np.hstack((roi_points[:, :2], np.zeros((len(roi_points), 1))))
@@ -141,35 +137,36 @@ class BoundingBoxPredictor():
         cluster_l = np.max(cluster_points[:, 1]) - np.min(cluster_points[:, 1])
         
         max_box_dim = max(box_w, box_l)
-        tolerance = 0.15 # 15 cm di tolleranza
+        min_box_dim = min(box_w, box_l)
+        tolerance = 0.3
         
-        if (cluster_w > max_box_dim + tolerance) or (cluster_l > max_box_dim + tolerance):
-            return None 
-
-        centroid_x = float(np.mean(cluster_points[:, 0]))
-        centroid_y = float(np.mean(cluster_points[:, 1]))
-        
-        # Calcoliamo i nuovi angoli (Corner 1 e 2) come si aspetta LATTE
-        theta = float(pred_angle)
-        w, l = float(box_w), float(box_l)
-        tr_local = np.array([w/2, l/2])
-        bl_local = np.array([-w/2, -l/2])
-        
-        rot_mat = np.array([[np.cos(theta), -np.sin(theta)], 
-                            [np.sin(theta), np.cos(theta)]])
-        
-        tr_rot = rot_mat @ tr_local + np.array([centroid_x, centroid_y])
-        bl_rot = rot_mat @ bl_local + np.array([centroid_x, centroid_y])
-        
-        # Restituiamo il dizionario formattato esattamente per il parsing di LATTE
-        return {
-            "center": [centroid_x, centroid_y],
-            "angle": theta,
-            "width": w,
-            "length": l,
-            "corner1": tr_rot.tolist(),
-            "corner2": bl_rot.tolist()
-        }
+        if (cluster_w <= max_box_dim + tolerance and cluster_l <= max_box_dim + tolerance) or (cluster_w >= min_box_dim - tolerance and cluster_l >= min_box_dim - tolerance):
+        	centroid_x = float(np.mean(cluster_points[:, 0]))
+        	centroid_y = float(np.mean(cluster_points[:, 1]))
+        	
+        	# Calcoliamo i nuovi angoli (Corner 1 e 2) come si aspetta LATTE
+        	theta = float(pred_angle)
+        	w, l = float(box_w), float(box_l)
+        	tr_local = np.array([w/2, l/2])
+        	bl_local = np.array([-w/2, -l/2])
+        	
+        	rot_mat = np.array([[np.cos(theta), -np.sin(theta)], 
+        						[np.sin(theta), np.cos(theta)]])
+        						
+        	tr_rot = rot_mat @ tr_local + np.array([centroid_x, centroid_y])
+        	bl_rot = rot_mat @ bl_local + np.array([centroid_x, centroid_y])
+        	
+        	# Restituiamo il dizionario formattato esattamente per il parsing di LATTE
+        	return {
+        		"center": [centroid_x, centroid_y],
+        		"angle": theta,
+        		"width": w,
+        		"length": l,
+        		"corner1": tr_rot.tolist(),
+        		"corner2": bl_rot.tolist()
+        		}
+        else:
+        	return None
 
     def corners_to_bounding_box(self, corners, context=None):
         sorted_corners = sorted(corners, key=lambda x:x[1])
@@ -287,21 +284,23 @@ class BoundingBoxPredictor():
         cluster_l = np.max(cluster_points[:, 1]) - np.min(cluster_points[:, 1])
     
         max_box_dim = max(box_w, box_l)
-        tolerance = 0.15 # 15 cm di tolleranza
+        min_box_dim = min(box_w, box_l)
+        tolerance = 0.3 
     
-        if (cluster_w > max_box_dim + tolerance) or (cluster_l > max_box_dim + tolerance):
-            return None 
-
-        # Compute Centroid
-        centroid_x = float(np.mean(cluster_points[:, 0]))
-        centroid_y = float(np.mean(cluster_points[:, 1]))
+        if (cluster_w <= max_box_dim + tolerance and cluster_l <= max_box_dim + tolerance) and (cluster_w >= min_box_dim - tolerance and cluster_l >= min_box_dim - tolerance):
         
-        return {
-            "centroid_x": centroid_x,
-            "centroid_y": centroid_y,
-            "points": cluster_points 
-         }
-    
+        	# Compute Centroid
+        	centroid_x = float(np.mean(cluster_points[:, 0]))
+        	centroid_y = float(np.mean(cluster_points[:, 1]))
+        	
+        	return {
+        		"centroid_x": centroid_x,
+        		"centroid_y": centroid_y,
+        		"points": cluster_points 
+        	}
+        else:
+        	return None
+    		
     def extract_frame_clusters(self, full_pc):
         """
         Runs Open3D DBSCAN and returns a dictionary of clusters.

@@ -166,9 +166,10 @@ def predictBoundingBox():
 def predictNextFrameBoundingBoxes():
     json_request = request.get_json()
     fname = json_request["fname"]
+    searchRadius = json_request["search_radius"]
     drivename, fname = fname.split("/")
     frame = fh.load_annotation(drivename, fname)
-    res = bp.predict_next_frame_bounding_boxes(frame)
+    res = bp.predict_next_frame_bounding_boxes(frame, searchRadius)
     keys = list(res.keys())
     for key in keys:
         res[str(key)] = res.pop(key)
