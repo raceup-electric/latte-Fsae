@@ -167,7 +167,10 @@ function App() {
 		} 
 		if (this.cur_frame) {
 		    this.write_frame_out();
-		    this.cur_frame.scene_remove_frame_children();   
+		    this.cur_frame.scene_remove_frame_children();
+		    var prev_frame = this.get_prev_frame();
+		    if(prev_frame)
+		    	prev_frame.scene_remove_frame_children();
 		    this.show_prev_frame = false;   
 		}
 		
