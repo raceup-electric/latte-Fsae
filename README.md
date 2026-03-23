@@ -51,7 +51,7 @@ app
 	    	├── 000000.png
 	    	└── 000001.png
 ```
-*Note: Point cloud `.bin` files must be `float32` arrays containing `[x, y, z, intensity]`.*
+*Note: Point cloud `.bin` files must be `float32` arrays containing `[x, y, z, intensity, reflectivity]`.*
 
 ## Usage & Controls
 
