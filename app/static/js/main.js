@@ -451,17 +451,18 @@ function generatePointCloud() {
     
     var max_i = -Infinity;
     var min_i = Infinity;
-    for (var i = 0; i < data.length; i += 4) {
+    for (var i = 0; i < data.length; i += 5) {
         var intensity = data[i+3];
         if (intensity > max_i) max_i = intensity;
         if (intensity < min_i) min_i = intensity;
     }
 
-    for (var i = 0; i < data.length; i += 4) {
+    for (var i = 0; i < data.length; i += 5) {
         var x = data[i+1];
         var y = data[i+2];
         var z = data[i];
         var intensity = data[i+3];
+        var reflectivity = data[i+4];
         
         geometry.vertices.push(new THREE.Vector3(x, y, z));
 

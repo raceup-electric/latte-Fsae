@@ -207,12 +207,11 @@ class BoundingBoxPredictor():
     def predict_bounding_box(self, point, pc, num_seeds=5, plot=False):
         # png = self.ground_plane_fitting(pc)["png"]
         assert len(pc.shape) == 2, "pointcloud must have 2-dimensional shape"
-        png = pc
-        if png.shape[1] == 4:
-            png = png[:,:3]
+        png = pc[:,:3]
+
         if point.size == 2:
             point = np.append(point, [0])
-        if point.size == 4:
+        else:
             point = point[:3]
 
         png[:,2] = 0

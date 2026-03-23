@@ -7,6 +7,9 @@ LATTE-Fsae is a highly customized fork of the [original LATTE annotation tool](h
 * **Adaptive Ground Removal Toggle:** A dedicated UI button to instantly hide/show the ground plane without losing annotations or reloading the page
 * **FSAE Official Labels:** Bounding boxes and labels are mapped to the official Formula Student rules (e.g., Blue Cone, Yellow Cone, Orange Cone, Big Orange Cone).
 * **Simple Tracking:** uses Open3D DBSCAN clustering to perfectly "snap" bounding boxes to the cones in the next frame, compensating for car movement and drastically reducing manual labeling time.
+>[!WARNING] 
+>* Tracking is done only when the next frame is NON-labeled (there is no file associated to that frame in the ouput folder) and only one cluster is found by the tracking search
+
 * **Label-cluster association:** Checks wheter a bounding box can be associated (position & dimension) to a cluster on that frame
 * Overall **usability upgrade and visual assistance**.
 ##  Installation 
@@ -64,11 +67,10 @@ Use the integrated control panel to adjust the visualizer:
 * **Remove/Restore ground:** Swaps between the `bin_data` and `ground_removed` clouds instantly
 * **Hide/Show labels** 
 
->[!WARNING] 
->* Tracking is done only when the next frame is NON-labeled (there is no file associated to that frame in the ouput folder)
-
 ### Actions
 * **One-click bounding box draw:** Hold the `a` key, then click a point in the cluster and the tool will draw a bounding box
+>[!WARNING] 
+>* It is preferred to use the 2D view when auto-drawing
 * **Drawing bounding box:** Bounding boxes can be drawn by holding the `ctrl` key and clicking and dragging
 * **Translation:** Hold `ctrl` then click&drag a box (the color of the box changes to light blue)
 * **Rotation:** Hold `ctrl` then click&drag the box's red high-mid point

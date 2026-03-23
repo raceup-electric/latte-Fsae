@@ -52,9 +52,9 @@ class FrameHandler():
             return data_str
         else:
             if ground_removed:
-                return data.reshape((-1,4))
+                return data.reshape((-1,5))
             else:
-                return data.reshape((-1,4))[:,:3]
+                return data.reshape((-1,5))[:,:4]
 
     def load_annotation(self, drivename, fname, dtype='object'):
         fname = fname.split('.')[0] + '.json'

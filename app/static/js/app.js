@@ -123,7 +123,7 @@ function App() {
                 this.cur_frame.is_ground_removed = this.use_ground_removed; // Salva stato nella cache
                 this.cur_frame.ys = [];
 		        var k = 0;
-		        var stride = typeof DATA_STRIDE !== 'undefined' ? DATA_STRIDE : 4; 
+		        var stride = typeof DATA_STRIDE !== 'undefined' ? DATA_STRIDE : 5; 
 		        for ( var i = 0, l = data.length / stride; i < l; i ++ ) {
 		        	this.cur_frame.ys.push(data[ stride * k + 2 ]);
 		        	k++;
@@ -198,7 +198,7 @@ function App() {
 		                
 		                frame.ys = [];
 		                var k = 0;
-		                var stride = typeof DATA_STRIDE !== 'undefined' ? DATA_STRIDE : 4; 
+		                var stride = typeof DATA_STRIDE !== 'undefined' ? DATA_STRIDE : 5; 
 		                for ( var i = 0, l = frame.data.length / stride; i < l; i ++ ) {
 		                    frame.ys.push(frame.data[ stride * k + 2 ]);
 		                    k++;
