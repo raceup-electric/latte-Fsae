@@ -103,7 +103,16 @@ nav a:hover {
 #label_counter_display{
 	font-size: 15px;
 	position: fixed;
-	  left: 700px;
+	  left: 600px;
+	  bottom: 3px;
+	  width: 200px;
+      text-align: center;
+}
+
+#label_viewmode_display{
+	font-size: 15px;
+	position: fixed;
+	  left: 850px;
 	  bottom: 3px;
 	  width: 200px;
       text-align: center;

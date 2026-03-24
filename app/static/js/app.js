@@ -13,6 +13,7 @@ function App() {
 	this.lock_frame = false;
 	this.use_ground_removed = false;
     this.show_annotations = true;
+    this.color_map = 'intensity';
 
 	this.init = function() {
 		$.ajax({
@@ -88,7 +89,47 @@ function App() {
             $('.label').hide();
         }
     };
+    this.toggleVisualizationMode = function() {
+    	if(this.color_map == 'intensity')
+    		this.color_map = 'reflectivity';
+    	else
+    		this.color_map = 'intensity';
+    		
+    	this.updatePointCloudColors();
+    	updateViewModeStats();
+    }
+	this.updatePointCloudColors = function() {
+        if (!app.cur_pointcloud || !app.cur_frame.data) return;
+        
+        var data = app.cur_frame.data;
+        var colors = app.cur_pointcloud.geometry.colors;
+        
+        var val_offset = (this.color_map === 'reflectivity') ? 4 : 3;
 
+    	var max_val = -Infinity;
+    	var min_val = Infinity;
+
+    	for (var i = 0; i < data.length; i += 5) {
+        	var val = data[i + val_offset];
+        	if (val > max_val) max_val = val;
+        	if (val < min_val) min_val = val;
+    	}
+
+
+    	var color_idx = 0;
+    	for (var i = 0; i < data.length; i += 5) {
+        	var val = data[i + val_offset];
+        	var norm_val = (val - min_val) / (max_val - min_val + 0.0001);
+        	var hue = (1.0 - norm_val) * 0.66; // Scala termica da blu a rosso
+        
+        	// Modifichiamo il colore direttamente in memoria!
+        	colors[color_idx].setHSL(hue, 1.0, 0.5);
+        	color_idx++;
+    	}
+
+    	app.cur_pointcloud.geometry.colorsNeedUpdate = true;
+	
+	}
     this.toggleAnnotations = function() {
         this.show_annotations = !this.show_annotations;
 
@@ -700,6 +741,7 @@ function show(frame) {
 	switchMoveMode();
 	
 	updateLabelStats();
+	updateViewModeStats();
 	
 	// Questo loop forza l'applicazione del colore salvato (base_color)
 	// a tutti i box appena aggiunti alla scena.

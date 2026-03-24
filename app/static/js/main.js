@@ -429,7 +429,15 @@ function updateLabelStats() {
 
     $("#label_counter_display").find("p").html("Labels: {0} | Associated: {1}".format(totalLabels, associatedCount));
 }
-
+function updateViewModeStats(){
+	if (typeof app === 'undefined' || !app.cur_frame) {
+        return;
+    }
+    
+    var mode = app.color_map;
+    
+    $("#label_viewmode_display").find("p").html("View mode: {0}".format(mode));
+}
 
 function generatePointCloud() {
     var currentSize = typeof pointSize !== 'undefined' ? pointSize : 0.05; 
@@ -472,7 +480,6 @@ function generatePointCloud() {
         color.setHSL(hue, 1.0, 0.5);
         colors.push(color);
     }
-    
     geometry.colors = colors;
     
     var material = new THREE.PointsMaterial({ 
@@ -482,6 +489,7 @@ function generatePointCloud() {
     });
     
     app.cur_pointcloud = new THREE.Points(geometry, material);
+    app.updatePointCloudColors();
     scene.add(app.cur_pointcloud);
     
     if (typeof pointSize !== 'undefined') {

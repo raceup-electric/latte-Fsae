@@ -7,6 +7,7 @@ var SettingsControls = function() {
     // Bind the functions to the app context if it exists, otherwise do nothing safely
     this.toggleGround = function() { if (typeof app !== 'undefined') app.toggleGroundRemoved(); };
     this.toggleAnnotations = function() { if (typeof app !== 'undefined') app.toggleAnnotations(); };
+    this.toggleVisualizationMode = function() { if (typeof app !== 'undefined') app.toggleVisualizationMode();}
 };
 
 var gui = new dat.GUI({ width: 400 }); // Made it slightly wider to fit button text
@@ -32,6 +33,7 @@ settingsFolder.add(settingsControls, 'searchRadius').min(0.1).max(1.0).step(0.1)
 // 3. Add our two toggles as buttons right under the slider
 settingsFolder.add(settingsControls, 'toggleGround').name('Remove/Restore ground');
 settingsFolder.add(settingsControls, 'toggleAnnotations').name('Hide/Show labels');
+settingsFolder.add(settingsControls, 'toggleVisualizationMode').name('Intensity/Reflectivity view') 
 
 settingsFolder.open();
 
