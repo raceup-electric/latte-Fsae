@@ -160,7 +160,8 @@ def predictBoundingBox():
     point = np.array([point['z'], point['x'], point['y']])
 
     frame = fh.get_pointcloud(drivename, fname, dtype=float, ground_removed=True)
-    return str(bp.predict_bounding_box(point, frame))
+    res = bp.predict_bounding_box(point, frame)
+    return str(res)
 
 @app.route("/predictNextFrameBoundingBoxes", methods=['POST'])
 def predictNextFrameBoundingBoxes():

@@ -236,7 +236,11 @@ class BoundingBoxPredictor():
         dists, sample_indices = kd_tree.query(seeds)
 
 
-        cluster_res = self.find_cluster(sample_indices, png_trimmed, th_dist=self.cluster_eps, num_nn=20, num_samples=20)
+        cluster_res = self.find_cluster(sample_indices, png_trimmed, th_dist=self.cluster_eps, density_thresh=3, num_samples=20)
+        
+        if len(cluster_res['cluster']) < 2:
+        	return None
+        
         edges, corners = self.search_rectangle_fit(cluster_res["cluster"], variance_criterion)
 
         if plot:
@@ -342,7 +346,7 @@ class BoundingBoxPredictor():
             dists, nn_indices = kd_tree.query(point, num_nn)
         return dists, nn_indices
 
-    def find_cluster(self, sample_indices, pc, th_dist=.2, density_thresh=10, num_nn=16, num_samples=20, overlap_thresh=.2):
+    def find_cluster(self, sample_indices, pc, th_dist=.2, density_thresh=5, num_samples=20):
         clusters = []
         seen_indices = []
         kd_tree = cKDTree(pc)
@@ -357,7 +361,6 @@ class BoundingBoxPredictor():
                 point = pc[idx]
                 cluster.append(point)
                 dists, nn_indices = self.search_farthest_nearest_neighbor(point, kd_tree, th_dist)
-                # dists, nn_indices = kd_tree.query(point, num_nn)
                 if (len(nn_indices) > density_thresh):
                     for i in range(len(nn_indices)):
                         if nn_indices[i] not in seen and dists[i] < th_dist:
@@ -368,14 +371,7 @@ class BoundingBoxPredictor():
             seen_indices.append(np.array(list(seen)))
         
         overlapping_clusters = []
-        # for i in range(len(seen_indices)):
-        #     num_overlapping =  sum([len(np.intersect1d(seen_indices[i], seen_indices[j]))/len(seen_indices[i]) > overlap_thresh for j in range(len(seen_indices)) if j!=i])
-        #     overlapping_clusters.append(num_overlapping)
         
-        # largest_cluster = np.argmax(overlapping_clusters)
-        # res = {"cluster": clusters[largest_cluster], "indices": seen_indices[largest_cluster]}
-
-        # largest_cluster = np.unique(np.concatenate(seen_indices))
         largest_cluster = max(clusters, key=lambda cl:len(cl))
         res = {"cluster": largest_cluster, "indices": largest_cluster}
         return res

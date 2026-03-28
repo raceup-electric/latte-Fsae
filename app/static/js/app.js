@@ -473,6 +473,12 @@ function App() {
 				contentType: 'application/json;charset=UTF-8',
 				data: JSON.stringify({fname: this.cur_frame.fname, point: clickPoint}),
 				success: function(response) {
+				
+					if(response == 'None'){ 
+						console.log('No cluster found for auto-draw');
+						return;
+					}
+					
 					var str = response.replace(/'/g, "\"");
 					var res = JSON.parse(str);
 	
