@@ -27,7 +27,7 @@ class BoundingBoxPredictor():
                     for drive in self.frame_handler.drives.keys()}
         self.poses = {drive: oxts2pose(self.oxts[drive]) for drive in self.oxts.keys()}
         
-        self.cluster_eps = 0.1;
+        self.cluster_eps = 0.2;
 
     def transform_coords(self, fname, x, inv=False):
         if x.size == 2:
