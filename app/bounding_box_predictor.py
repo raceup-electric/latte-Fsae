@@ -122,7 +122,7 @@ class BoundingBoxPredictor():
         pcd = o3d.geometry.PointCloud()
         # open3d vuole 3 coordinate, riempiamo Z (altezza) di zeri per il clustering 2D
         points_3d = np.hstack((roi_points[:, :2], np.zeros((len(roi_points), 1))))
-        pcd.points = o3d.utility.Vector3dVector(points_3d)
+        pcd.points = o3d.utility.Vector3dVector(roi_points[:, :3])
         
         labels = np.array(pcd.cluster_dbscan(eps=self.cluster_eps, min_points=3, print_progress=False))
         unique_labels = np.unique(labels[labels >= 0])
@@ -214,7 +214,7 @@ class BoundingBoxPredictor():
         else:
             point = point[:3]
 
-        png[:,2] = 0
+        # png[:,2] = 0
         kd_tree = cKDTree(png)
 
         #trim png
@@ -267,7 +267,7 @@ class BoundingBoxPredictor():
         pcd = o3d.geometry.PointCloud()
     
         points_3d = np.hstack((roi_points[:, :2], np.zeros((len(roi_points), 1))))
-        pcd.points = o3d.utility.Vector3dVector(points_3d)
+        pcd.points = o3d.utility.Vector3dVector(roi_points[:, :3])
     
         labels = np.array(pcd.cluster_dbscan(eps=self.cluster_eps, min_points=3, print_progress=False))
         unique_labels = np.unique(labels[labels >= 0])
@@ -308,7 +308,7 @@ class BoundingBoxPredictor():
         pcd = o3d.geometry.PointCloud()
     
         points_3d = np.hstack((full_pc[:, :2], np.zeros((len(full_pc), 1))))
-        pcd.points = o3d.utility.Vector3dVector(points_3d)
+        pcd.points = o3d.utility.Vector3dVector(full_pc[:, :3])
     
         labels = np.array(pcd.cluster_dbscan(eps=self.cluster_eps, min_points=3, print_progress=False))
         unique_labels = np.unique(labels[labels >= 0])
