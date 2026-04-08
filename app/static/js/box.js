@@ -49,7 +49,7 @@ function Box(anchor, cursor, angle, boundingBox, boxHelper) {
         }
 
         var MAX_RADIUS = 0.3; 
-        var TOLERANCE = 0.25;
+        var TOLERANCE = 0.3;
 
         var closestIdx = null; 
         var minDistance = Infinity;
