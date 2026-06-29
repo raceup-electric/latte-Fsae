@@ -380,7 +380,7 @@ function update_footer(pos) {
     if (isRecording) {
         if (true) {
             if (controls.enabled == true) {
-                reminder_text = "Hold CTRL to draw/move/resize/rotate a box;  Hold A and click on a cluster for auto-drawing;";
+                reminder_text = "Hold CTRL to draw/move/resize/rotate a box;  Hold SHIFT and click on a cluster for auto-drawing;";
             } else {
                 if (isResizing) {
                     reminder_text = "Release mouse to stop resizing box";

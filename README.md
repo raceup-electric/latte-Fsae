@@ -69,7 +69,7 @@ Use the integrated control panel to adjust the visualizer:
 * **Intensity/Reflectivity view mode**
 
 ### Actions
-* **One-click bounding box draw:** Hold the `a` key, then click a point in the cluster and the tool will draw a bounding box
+* **One-click bounding box draw:** Hold the `shift` key, then click a point in the cluster and the tool will draw a bounding box
 >[!WARNING] 
 >* It is preferred to use the 2D view when auto-drawing
 * **Drawing bounding box:** Bounding boxes can be drawn by holding the `ctrl` key and clicking and dragging

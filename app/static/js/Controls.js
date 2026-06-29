@@ -78,7 +78,10 @@ function onKeyDown2(event) {
         if (event.ctrlKey) {
             toggleControl(false);
         }
-        
+        if(event.shiftKey){
+        	autoDrawModeToggle(true);
+        }
+        else{
         switch(KeyID)
         {
             case 8: // backspace
@@ -88,9 +91,9 @@ function onKeyDown2(event) {
             deleteSelectedBox();
             break;
 
-            case 65: // a key
-            autoDrawModeToggle(true);
-            break;
+            //case 65: // a key
+            //autoDrawModeToggle(true);
+            //break;
 
             case 90: // z key
             showPreviousFrameBoundingBoxToggle(true);
@@ -100,12 +103,14 @@ function onKeyDown2(event) {
             default:
             break;
         }
+        }
     }   
 }
 
 // controller for releasing hotkeys
 function onKeyUp2(event) {
     if(isRecording) {
+    	/*
         var KeyID = event.keyCode;
         switch(KeyID)
         {
@@ -115,7 +120,11 @@ function onKeyUp2(event) {
             default:
             toggleControl(true);
             break;
+        }*/
+        if(!event.shiftKey){
+        	autoDrawModeToggle(false);
         }
+        toggleControl(true);
     }
 }
 
